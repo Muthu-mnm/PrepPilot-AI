@@ -1,0 +1,15 @@
+# Backend specific gitignore
+.env
+.env.*
+!.env.example
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+data/
+*.sqlite
+*.sqlite3
+*.db
+.pytest_cache/
+*.log
