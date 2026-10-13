@@ -13,6 +13,7 @@ from app.database.mongodb import get_database
 from app.ai.client import ai_client
 from app.schemas.prep import (
     ResumeExtractedData,
+    CompanyDocExtractedData,
     GitHubRepoAnalysis,
     CandidateExperienceInput,
     PreparationSetupRequest,
@@ -96,6 +97,71 @@ class PrepService:
             experience=experience[:4],
             certifications=certifications[:3],
             summary=f"Parsed {len(lines)} lines from {filename}. Detected {len(skills_found)} technical skills and {len(projects)} key projects.",
+            raw_text_length=len(text)
+        )
+
+    @staticmethod
+    def parse_company_document(filename: str, file_bytes: bytes) -> CompanyDocExtractedData:
+        """Extracts text from PDF, DOCX, or text file and parses official company skill specifications."""
+        text = PrepService.extract_text_from_file(filename, file_bytes)
+        return PrepService.parse_company_text(text, filename=filename)
+
+    @staticmethod
+    def parse_company_text(text: str, filename: Optional[str] = "Company Specification") -> CompanyDocExtractedData:
+        """Parses company specifications from text, distinguishing official requirements from inferred ones."""
+        lines = [line.strip() for line in text.split("\n") if line.strip()]
+        
+        common_tech = [
+            "Python", "Java", "C++", "C#", "JavaScript", "TypeScript", "React", "Node.js",
+            "SQL", "PostgreSQL", "MySQL", "MongoDB", "Redis", "Docker", "Kubernetes",
+            "Git", "FastAPI", "Django", "Spring Boot", "AWS", "Azure", "GCP",
+            "Data Structures", "Algorithms", "System Design", "Microservices", "REST APIs"
+        ]
+        found_tech = []
+        for tech in common_tech:
+            pattern = r'\b' + re.escape(tech) + r'\b'
+            if re.search(pattern, text, re.IGNORECASE):
+                found_tech.append(tech)
+
+        required_skills = []
+        preferred_skills = []
+        for tech in found_tech:
+            pref_match = re.search(r'(?:preferred|nice to have|plus|bonus|optional).*?' + re.escape(tech), text, re.IGNORECASE)
+            if pref_match:
+                preferred_skills.append(tech)
+            else:
+                required_skills.append(tech)
+
+        eligibility = []
+        responsibilities = []
+        for line in lines:
+            line_lower = line.lower()
+            if any(k in line_lower for k in ["b.tech", "bachelor", "cgpa", "gpa", "degree", "eligible", "eligibility", "criteria", "60%", "70%"]):
+                if len(line) < 140 and line not in eligibility:
+                    eligibility.append(line)
+            elif any(k in line_lower for k in ["responsibilities", "responsible for", "you will", "role requires", "develop", "maintain"]):
+                if 20 < len(line) < 160 and line not in responsibilities:
+                    responsibilities.append(line)
+
+        company_name = None
+        role_title = None
+        for line in lines[:8]:
+            if any(k in line.lower() for k in ["engineer", "developer", "associate", "intern", "analyst"]):
+                if not role_title and len(line) < 80:
+                    role_title = line
+            if any(k in line.lower() for k in ["inc", "ltd", "technologies", "corporation", "amazon", "google", "microsoft", "fidelity", "tcs"]):
+                if not company_name and len(line) < 60:
+                    company_name = line
+
+        return CompanyDocExtractedData(
+            filename=filename,
+            company_name=company_name or "Target Enterprise",
+            role_title=role_title or "Software Development Engineer",
+            required_skills=sorted(required_skills),
+            preferred_skills=sorted(preferred_skills),
+            eligibility_criteria=eligibility[:4],
+            role_responsibilities=responsibilities[:4],
+            summary=f"Extracted {len(required_skills)} required skills, {len(preferred_skills)} preferred skills, and {len(eligibility)} eligibility criteria from {filename}.",
             raw_text_length=len(text)
         )
 

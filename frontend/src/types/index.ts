@@ -204,6 +204,18 @@ export interface GitHubRepoAnalysis {
   potential_defense_topics: string[];
 }
 
+export interface CompanyDocExtractedData {
+  filename?: string;
+  company_name?: string;
+  role_title?: string;
+  required_skills: string[];
+  preferred_skills: string[];
+  eligibility_criteria: string[];
+  role_responsibilities: string[];
+  summary?: string;
+  raw_text_length: number;
+}
+
 export interface CandidateExperienceInput {
   id?: string;
   source_url?: string;
@@ -228,6 +240,7 @@ export interface PreparationSetupRequest {
   weak_topics: string[];
   learning_goals: string[];
   resume_data?: ResumeExtractedData;
+  company_docs?: CompanyDocExtractedData[];
   github_repos: GitHubRepoAnalysis[];
   candidate_experiences: CandidateExperienceInput[];
 }
@@ -259,11 +272,41 @@ export interface PreparationPlanResponse {
   updated_at: string;
 }
 
+export type MentorMode = 
+  | 'general_chat' 
+  | 'interview' 
+  | 'coding' 
+  | 'learn' 
+  | 'project_defense' 
+  | 'retest'
+  | 'mentor_chat' 
+  | 'concept_explanation' 
+  | 'coding_review' 
+  | 'knowledge_check';
+
+export interface ChatAttachment {
+  id: string;
+  name: string;
+  category: 'resume' | 'company_spec' | 'github_repo' | 'interview_experience' | 'pasted_text';
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  summary?: string;
+  error?: string;
+  extractedData?: any;
+}
+
+export interface LearningEventCreate {
+  topic: string;
+  attempt_type: 'independent' | 'hint_assisted' | 'solution_assisted';
+  outcome: 'correct' | 'partially_correct' | 'incorrect' | 'failed';
+  misconception_tag?: string;
+  question_title?: string;
+}
+
 export interface MentorChatMessage {
   id: string;
   role: 'mentor' | 'candidate';
   content: string;
-  mode: 'mentor_chat' | 'project_defense' | 'concept_explanation' | 'coding_review' | 'knowledge_check';
+  mode: MentorMode;
   misconception_detected?: string;
   affirmation?: string;
   action_type?: 'offer_code' | 'schedule_revision' | 'retest_question';

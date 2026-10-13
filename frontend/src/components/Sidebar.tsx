@@ -29,19 +29,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onLogout,
   onOpenAuth,
 }) => {
-  // Map legacy/sub-route tab IDs to the 4 primary destinations
+  // Map legacy/sub-route tab IDs to the 3 primary destinations
   const activeTabId = 
-    currentTab === 'dashboard' ? 'home' :
-    currentTab === 'setup' ? 'profile' :
-    currentTab === 'revisions' ? 'progress' :
-    ['coding', 'interview', 'mastery'].includes(currentTab) ? 'mentor' :
-    currentTab;
+    ['mentor', 'home', 'dashboard', 'coding', 'interview', 'mastery'].includes(currentTab) ? 'mentor' :
+    ['progress', 'revisions', 'analytics'].includes(currentTab) ? 'progress' :
+    ['profile', 'setup', 'companies'].includes(currentTab) ? 'profile' :
+    'mentor';
 
   const navItems = [
-    { id: 'home', label: 'Home', icon: Compass },
     { id: 'mentor', label: 'My Mentor', icon: Sparkles },
     { id: 'progress', label: 'My Progress', icon: BarChart3 },
-    { id: 'profile', label: 'Preparation Profile', icon: Target },
+    { id: 'profile', label: 'My Profile', icon: Target },
   ];
 
   return (

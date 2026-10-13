@@ -22,6 +22,17 @@ class GitHubRepoAnalysis(BaseModel):
     architecture_summary: Optional[str] = None
     potential_defense_topics: List[str] = []
 
+class CompanyDocExtractedData(BaseModel):
+    filename: Optional[str] = None
+    company_name: Optional[str] = None
+    role_title: Optional[str] = None
+    required_skills: List[str] = []
+    preferred_skills: List[str] = []
+    eligibility_criteria: List[str] = []
+    role_responsibilities: List[str] = []
+    summary: Optional[str] = None
+    raw_text_length: int = 0
+
 class CandidateExperienceInput(BaseModel):
     id: Optional[str] = None
     source_url: Optional[str] = None
@@ -45,6 +56,7 @@ class PreparationSetupRequest(BaseModel):
     weak_topics: List[str] = []
     learning_goals: List[str] = []
     resume_data: Optional[ResumeExtractedData] = None
+    company_docs: List[CompanyDocExtractedData] = []
     github_repos: List[GitHubRepoAnalysis] = []
     candidate_experiences: List[CandidateExperienceInput] = []
 

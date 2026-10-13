@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File,
 from typing import List, Optional, Dict, Any
 from app.schemas.prep import (
     ResumeExtractedData,
+    CompanyDocExtractedData,
     GitHubRepoAnalysis,
     CandidateExperienceInput,
     PreparationSetupRequest,
@@ -25,6 +26,20 @@ async def upload_resume(file: UploadFile = File(...)):
         raise HTTPException(status_code=400, detail="Resume file exceeds 10MB limit.")
     
     return PrepService.parse_resume(file.filename or "resume.pdf", contents)
+
+@router.post("/upload-company-doc", response_model=CompanyDocExtractedData)
+async def upload_company_doc(file: UploadFile = File(...)):
+    contents = await file.read()
+    if len(contents) > 10 * 1024 * 1024:  # 10MB cap
+        raise HTTPException(status_code=400, detail="Document exceeds 10MB limit.")
+    return PrepService.parse_company_document(file.filename or "company_spec.pdf", contents)
+
+@router.post("/parse-company-text", response_model=CompanyDocExtractedData)
+async def parse_company_text(payload: Dict[str, str]):
+    text = payload.get("text", "")
+    if not text.strip():
+        raise HTTPException(status_code=400, detail="Missing text for company skill specification.")
+    return PrepService.parse_company_text(text, filename="Pasted Job Description")
 
 @router.post("/analyze-github", response_model=GitHubRepoAnalysis)
 async def analyze_github(payload: Dict[str, str]):

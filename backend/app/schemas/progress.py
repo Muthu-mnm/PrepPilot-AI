@@ -41,3 +41,10 @@ class ProgressOverviewResponse(BaseModel):
     pending_revisions_count: int
     recent_activity: List[LearningActivityItem]
     notice: str = "Metrics represent verifiable attempt counts and rubric results. PrepPilot AI does not predict selection probability or guarantee placements."
+
+class LearningEventCreate(BaseModel):
+    topic: str
+    attempt_type: str = "independent"  # "independent" | "hint_assisted" | "solution_assisted"
+    outcome: str = "correct"           # "correct" | "partially_correct" | "incorrect" | "failed"
+    misconception_tag: Optional[str] = None
+    question_title: Optional[str] = None

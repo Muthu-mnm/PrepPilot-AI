@@ -9,12 +9,12 @@ import { User } from './types';
 import { api } from './services/api';
 
 export const App: React.FC = () => {
-  const [currentTab, setCurrentTab] = useState<string>('home');
+  const [currentTab, setCurrentTab] = useState<string>('mentor');
   const [user, setUser] = useState<User | null>(null);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [mentorInitialMode, setMentorInitialMode] = useState<
-    'mentor_chat' | 'project_defense' | 'concept_explanation' | 'coding_review' | 'knowledge_check'
-  >('mentor_chat');
+    'general_chat' | 'interview' | 'coding' | 'learn' | 'project_defense' | 'retest'
+  >('general_chat');
 
   useEffect(() => {
     // Check for existing token
@@ -29,28 +29,32 @@ export const App: React.FC = () => {
     }
   }, []);
 
-  const handleNavigate = (tab: string, mode?: 'mentor_chat' | 'project_defense' | 'concept_explanation' | 'coding_review' | 'knowledge_check') => {
+  const handleNavigate = (tab: string, mode?: 'general_chat' | 'interview' | 'coding' | 'learn' | 'project_defense' | 'retest') => {
     if (mode) {
       setMentorInitialMode(mode);
     }
-    // Route aliases to the 4 canonical tabs
-    if (tab === 'dashboard') {
-      setCurrentTab('home');
-    } else if (tab === 'setup') {
+    // Route aliases to the 3 canonical tabs: My Mentor, My Progress, My Profile
+    if (tab === 'dashboard' || tab === 'home') {
+      setCurrentTab('mentor');
+    } else if (tab === 'setup' || tab === 'companies') {
       setCurrentTab('profile');
-    } else if (tab === 'revisions') {
+    } else if (tab === 'revisions' || tab === 'analytics') {
       setCurrentTab('progress');
     } else if (tab === 'coding') {
-      setMentorInitialMode('coding_review');
+      setMentorInitialMode('coding');
       setCurrentTab('mentor');
     } else if (tab === 'interview') {
-      setMentorInitialMode('mentor_chat');
+      setMentorInitialMode('interview');
       setCurrentTab('mentor');
-    } else if (tab === 'mastery') {
-      setMentorInitialMode('concept_explanation');
+    } else if (tab === 'mastery' || tab === 'learn') {
+      setMentorInitialMode('learn');
       setCurrentTab('mentor');
-    } else if (tab === 'companies') {
-      setCurrentTab('profile');
+    } else if (tab === 'retest') {
+      setMentorInitialMode('retest');
+      setCurrentTab('mentor');
+    } else if (tab === 'project_defense') {
+      setMentorInitialMode('project_defense');
+      setCurrentTab('mentor');
     } else {
       setCurrentTab(tab);
     }
@@ -64,13 +68,7 @@ export const App: React.FC = () => {
   // Canonical tab display label
   const getTabTitle = (tab: string) => {
     switch (tab) {
-      case 'home':
-      case 'dashboard':
-        return 'Home';
       case 'mentor':
-      case 'interview':
-      case 'coding':
-      case 'mastery':
         return 'My Mentor';
       case 'progress':
       case 'revisions':
@@ -78,15 +76,15 @@ export const App: React.FC = () => {
       case 'profile':
       case 'setup':
       case 'companies':
-        return 'Preparation Profile';
+        return 'My Profile';
       default:
-        return 'Home';
+        return 'My Mentor';
     }
   };
 
   return (
     <div className="app-container">
-      {/* 4-Destination Primary Sidebar */}
+      {/* 3-Destination Primary Sidebar */}
       <Sidebar
         currentTab={currentTab}
         setCurrentTab={(tab) => handleNavigate(tab)}
@@ -119,16 +117,9 @@ export const App: React.FC = () => {
           </div>
         </header>
 
-        {/* View Router */}
+        {/* View Router: Only 3 Canonical Destinations */}
         <div className="content-body">
-          {(currentTab === 'home' || currentTab === 'dashboard') && (
-            <Dashboard 
-              user={user} 
-              onNavigate={(tab) => handleNavigate(tab)} 
-            />
-          )}
-
-          {(currentTab === 'mentor' || currentTab === 'interview' || currentTab === 'coding' || currentTab === 'mastery') && (
+          {(currentTab === 'mentor' || currentTab === 'home' || currentTab === 'dashboard') && (
             <UnifiedMentor 
               initialMode={mentorInitialMode}
               onNavigate={(tab) => handleNavigate(tab)}

@@ -22,29 +22,53 @@ import {
   FolderGit2, 
   PanelRightClose,
   PanelRightOpen,
-  Calendar
+  Calendar,
+  Paperclip,
+  FileText,
+  Building2,
+  Upload,
+  Globe
 } from 'lucide-react';
 import { 
   MentorChatMessage, 
   PreparationPlanResponse, 
   CodingQuestion, 
-  CodeExecutionResponse 
+  CodeExecutionResponse,
+  MentorMode,
+  ChatAttachment,
+  ResumeExtractedData,
+  CompanyDocExtractedData,
+  GitHubRepoAnalysis,
+  CandidateExperienceInput
 } from '../types';
 import { api } from '../services/api';
 
 interface UnifiedMentorProps {
   onNavigateToSetup?: () => void;
   onNavigateToRevisions?: () => void;
-  onNavigate?: (tab: string) => void;
-  initialMode?: 'mentor_chat' | 'project_defense' | 'concept_explanation' | 'coding_review' | 'knowledge_check';
+  onNavigate?: (tab: string, mode?: string) => void;
+  initialMode?: string;
 }
 
 export const UnifiedMentor: React.FC<UnifiedMentorProps> = ({
   onNavigateToSetup,
   onNavigateToRevisions,
   onNavigate,
-  initialMode = 'mentor_chat'
+  initialMode = 'general_chat'
 }) => {
+  // Normalize initial mode
+  const normalizeMode = (m?: string): MentorMode => {
+    if (!m) return 'general_chat';
+    if (m === 'mentor_chat') return 'general_chat';
+    if (m === 'concept_explanation') return 'learn';
+    if (m === 'coding_review') return 'coding';
+    if (m === 'knowledge_check') return 'retest';
+    if (['general_chat', 'interview', 'coding', 'learn', 'project_defense', 'retest'].includes(m)) {
+      return m as MentorMode;
+    }
+    return 'general_chat';
+  };
+
   // 1. Persistent Conversation State
   const [messages, setMessages] = useState<MentorChatMessage[]>([]);
   const [loading, setLoading] = useState(true);
@@ -52,9 +76,7 @@ export const UnifiedMentor: React.FC<UnifiedMentorProps> = ({
   const [sendError, setSendError] = useState<string | null>(null);
   const [inputMessage, setInputMessage] = useState('');
   const [selectedTopic, setSelectedTopic] = useState('');
-  const [currentMode, setCurrentMode] = useState<
-    'mentor_chat' | 'project_defense' | 'concept_explanation' | 'coding_review' | 'knowledge_check'
-  >(initialMode);
+  const [currentMode, setCurrentMode] = useState<MentorMode>(normalizeMode(initialMode));
 
   // 2. Profile & Learning Context
   const [plan, setPlan] = useState<PreparationPlanResponse | null>(null);
@@ -62,7 +84,7 @@ export const UnifiedMentor: React.FC<UnifiedMentorProps> = ({
   const [copiedCodeIdx, setCopiedCodeIdx] = useState<number | null>(null);
 
   // 3. Embedded Monaco Editor & Sandbox State
-  const [showEmbeddedEditor, setShowEmbeddedEditor] = useState(initialMode === 'coding_review');
+  const [showEmbeddedEditor, setShowEmbeddedEditor] = useState(normalizeMode(initialMode) === 'coding');
   const [questions, setQuestions] = useState<CodingQuestion[]>([]);
   const [selectedQuestion, setSelectedQuestion] = useState<CodingQuestion | null>(null);
   const [code, setCode] = useState<string>('');
@@ -71,50 +93,76 @@ export const UnifiedMentor: React.FC<UnifiedMentorProps> = ({
   const [isRunningCode, setIsRunningCode] = useState(false);
   const [isSubmittingCode, setIsSubmittingCode] = useState(false);
 
+  // 4. Unified Attachment Experience State
+  const [showAttachmentModal, setShowAttachmentModal] = useState(false);
+  const [activeAttachTab, setActiveAttachTab] = useState<'resume' | 'company' | 'github' | 'experience'>('resume');
+  const [isProcessingAttach, setIsProcessingAttach] = useState(false);
+  const [attachError, setAttachError] = useState<string | null>(null);
+  const [attachedItems, setAttachedItems] = useState<ChatAttachment[]>([]);
+  const [pastedCompanyText, setPastedCompanyText] = useState('');
+  const [githubUrlInput, setGithubUrlInput] = useState('');
+  const [pastedExpText, setPastedExpText] = useState('');
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // 5 Clearly Differentiated Contextual Modes
-  const modeDefinitions = [
+  // 6 Compact Selectable Modes (ChatGPT-style pills)
+  const modeDefinitions: {
+    id: MentorMode;
+    label: string;
+    icon: any;
+    tagline: string;
+    placeholder: string;
+    starterText: string;
+  }[] = [
     {
-      id: 'mentor_chat' as const,
-      label: 'Interview Practice',
+      id: 'general_chat',
+      label: 'General Chat',
+      icon: Sparkles,
+      tagline: 'Conversational Guidance, Onboarding & Preparation Strategy',
+      placeholder: 'Ask questions, discuss your target role, or build your prep plan...',
+      starterText: 'Hello Mentor, I would like to review my overall preparation plan and next priorities.'
+    },
+    {
+      id: 'interview',
+      label: 'Interview',
       icon: Target,
-      tagline: 'Role-Specific Technical & Behavioral Interview',
-      placeholder: 'Answer the question, ask for clarification, or start a mock technical round...',
+      tagline: 'One-Question-at-a-Time Technical & Behavioral Mock Rounds',
+      placeholder: 'Answer the question, explain your reasoning, or ask for clarification...',
       starterText: 'Let\'s begin a mock technical interview for my target role. Please ask me the first challenging question.'
     },
     {
-      id: 'project_defense' as const,
-      label: 'Defend My Project',
-      icon: BookOpen,
-      tagline: 'GitHub Repository Architecture & Trade-Off Defense',
-      placeholder: 'Explain your architecture, concurrency handling, database choice, or system trade-offs...',
-      starterText: 'I want to defend the architecture of my GitHub project. Please question me on my design decisions and scaling trade-offs.'
+      id: 'coding',
+      label: 'Coding',
+      icon: Terminal,
+      tagline: 'Interactive Monaco Sandbox with Python/SQLite Execution & Test Feedback',
+      placeholder: 'Discuss your algorithm, test edge cases, or ask for a hint on code...',
+      starterText: 'I would like to solve a live coding challenge in the sandbox. Guide me through the optimal approach.'
     },
     {
-      id: 'concept_explanation' as const,
-      label: 'Learn a Concept',
+      id: 'learn',
+      label: 'Learn',
       icon: Lightbulb,
-      tagline: '5-Step Intuitive Analogy & Misconception Calibration',
+      tagline: '5-Step Intuitive Analogy, Mechanics & Misconception Calibration',
       placeholder: 'Ask to explain any concept, SQL join trap, caching pattern, or data structure...',
       starterText: 'Could you explain SQL Joins on Unmatched Records using a concrete analogy and 5-step breakdown?'
     },
     {
-      id: 'coding_review' as const,
-      label: 'Coding Practice',
-      icon: Terminal,
-      tagline: 'Monaco Editor Sandbox with Python/SQLite Execution & Mentoring',
-      placeholder: 'Discuss your algorithm, ask about edge cases, or request a progressive hint...',
-      starterText: 'I would like to solve a live coding challenge in the sandbox. Guide me through the optimal approach.'
+      id: 'project_defense',
+      label: 'Project Defense',
+      icon: BookOpen,
+      tagline: 'Defend Architecture, Concurrency & Trade-offs of Your Actual GitHub Projects',
+      placeholder: 'Explain your architecture, concurrency handling, database choice, or system trade-offs...',
+      starterText: 'I want to defend the architecture of my GitHub project. Please question me on my design decisions and scaling trade-offs.'
     },
     {
-      id: 'knowledge_check' as const,
-      label: 'Retest Weak Areas',
+      id: 'retest',
+      label: 'Retest',
       icon: RotateCcw,
-      tagline: 'Targeted Retrieval Checks on Diagnosed Misconceptions',
+      tagline: 'Independent Retrieval Checks on Diagnosed Misconceptions & Weak Areas',
       placeholder: 'Answer the retention check question or request a review of your weak spots...',
-      starterText: 'Please give me a retrieval check question targeting my diagnosed weak spots and misconceptions.'
+      starterText: 'Please give me an independent retrieval check question targeting my diagnosed weak spots and misconceptions.'
     }
   ];
 
@@ -152,9 +200,9 @@ export const UnifiedMentor: React.FC<UnifiedMentorProps> = ({
     fetchInitialData();
   }, []);
 
-  // When mode changes to coding_review, auto-open editor
+  // When mode changes to coding, auto-open editor
   useEffect(() => {
-    if (currentMode === 'coding_review') {
+    if (currentMode === 'coding') {
       setShowEmbeddedEditor(true);
     }
   }, [currentMode]);
@@ -210,14 +258,14 @@ export const UnifiedMentor: React.FC<UnifiedMentorProps> = ({
   };
 
   // Switch Mode smoothly without losing conversation
-  const handleSwitchMode = (newMode: typeof currentMode) => {
+  const handleSwitchMode = (newMode: MentorMode) => {
     setCurrentMode(newMode);
-    if (newMode === 'coding_review') {
+    if (newMode === 'coding') {
       setShowEmbeddedEditor(true);
     }
   };
 
-  // Progressive Hint Handler
+  // Progressive Hint Handler (Logs hint-assisted attempt)
   const handleRequestProgressiveHint = async (hintType: 'nudge' | 'structural' | 'solution') => {
     let hintPrompt = '';
     if (hintType === 'nudge') {
@@ -227,6 +275,14 @@ export const UnifiedMentor: React.FC<UnifiedMentorProps> = ({
     } else {
       hintPrompt = 'Please walk me through the optimal solution step-by-step and explain the key trade-offs.';
     }
+
+    // Deterministically track that this turn utilized hints
+    api.recordLearningEvent({
+      topic: selectedTopic || 'General Technical',
+      attempt_type: hintType === 'solution' ? 'solution_assisted' : 'hint_assisted',
+      outcome: 'partially_correct'
+    }).catch(() => {});
+
     await handleSendMessage(hintPrompt);
   };
 
@@ -327,6 +383,197 @@ Could you please:
     navigator.clipboard.writeText(codeText);
     setCopiedCodeIdx(idx);
     setTimeout(() => setCopiedCodeIdx(null), 2000);
+  };
+
+  // Attachment Processing Handlers
+  const handleUploadResumeFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsProcessingAttach(true);
+    setAttachError(null);
+    try {
+      const data: ResumeExtractedData = await api.uploadResume(file);
+      const newAttach: ChatAttachment = {
+        id: `att-${Date.now()}`,
+        name: file.name,
+        category: 'resume',
+        status: 'completed',
+        summary: data.summary || `Extracted ${data.skills.length} skills and ${data.projects.length} projects.`,
+        extractedData: data
+      };
+      setAttachedItems((prev) => [...prev, newAttach]);
+      setShowAttachmentModal(false);
+
+      // Conversational prompt informing mentor
+      const notifyPrompt = `I have attached my resume ("${file.name}").
+Key extracted skills: ${data.skills.slice(0, 6).join(', ')}.
+Notable projects: ${data.projects.slice(0, 3).join(', ')}.
+Please use this background when formulating questions, project defense drills, and target preparation.`;
+      await handleSendMessage(notifyPrompt);
+    } catch (err: any) {
+      setAttachError(err.message || 'Failed to process resume file.');
+    } finally {
+      setIsProcessingAttach(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleUploadCompanyDocFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsProcessingAttach(true);
+    setAttachError(null);
+    try {
+      const data: CompanyDocExtractedData = await api.uploadCompanyDoc(file);
+      const newAttach: ChatAttachment = {
+        id: `att-${Date.now()}`,
+        name: file.name,
+        category: 'company_spec',
+        status: 'completed',
+        summary: data.summary || `Extracted ${data.required_skills.length} required skills.`,
+        extractedData: data
+      };
+      setAttachedItems((prev) => [...prev, newAttach]);
+      setShowAttachmentModal(false);
+
+      const notifyPrompt = `I have attached official company skill specifications from "${file.name}" for the role "${data.role_title}".
+Required skills: ${data.required_skills.join(', ')}.
+Preferred skills: ${data.preferred_skills.join(', ')}.
+Please prioritize these requirements in our practice.`;
+      await handleSendMessage(notifyPrompt);
+    } catch (err: any) {
+      setAttachError(err.message || 'Failed to process company document.');
+    } finally {
+      setIsProcessingAttach(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleParseCompanyText = async () => {
+    if (!pastedCompanyText.trim()) return;
+    setIsProcessingAttach(true);
+    setAttachError(null);
+    try {
+      const data: CompanyDocExtractedData = await api.parseCompanyText(pastedCompanyText);
+      const newAttach: ChatAttachment = {
+        id: `att-${Date.now()}`,
+        name: data.role_title || 'Pasted Job Spec',
+        category: 'company_spec',
+        status: 'completed',
+        summary: data.summary || `Extracted ${data.required_skills.length} required skills.`,
+        extractedData: data
+      };
+      setAttachedItems((prev) => [...prev, newAttach]);
+      setPastedCompanyText('');
+      setShowAttachmentModal(false);
+
+      const notifyPrompt = `I have pasted a job specification for "${data.role_title}".
+Required skills detected: ${data.required_skills.join(', ')}.
+Please ground our interview and coding drills in these requirements.`;
+      await handleSendMessage(notifyPrompt);
+    } catch (err: any) {
+      setAttachError(err.message || 'Failed to parse company text.');
+    } finally {
+      setIsProcessingAttach(false);
+    }
+  };
+
+  const handleAnalyzeGithubRepo = async () => {
+    if (!githubUrlInput.trim()) return;
+    setIsProcessingAttach(true);
+    setAttachError(null);
+    try {
+      const data: GitHubRepoAnalysis = await api.analyzeGitHub(githubUrlInput.trim());
+      const newAttach: ChatAttachment = {
+        id: `att-${Date.now()}`,
+        name: data.repo_name,
+        category: 'github_repo',
+        status: 'completed',
+        summary: `Language: ${data.primary_language || 'Unknown'}. Architecture: ${data.architecture_summary || 'Standard'}.`,
+        extractedData: data
+      };
+      setAttachedItems((prev) => [...prev, newAttach]);
+      setGithubUrlInput('');
+      setShowAttachmentModal(false);
+
+      const notifyPrompt = `I have attached my GitHub repository "${data.repo_name}" (${data.primary_language || 'codebase'}).
+Technologies: ${data.dependencies.join(', ') || 'Standard stack'}.
+Potential defense topics: ${data.potential_defense_topics.join(', ')}.
+Let's drill into the architectural trade-offs of this project.`;
+      setCurrentMode('project_defense');
+      await handleSendMessage(notifyPrompt);
+    } catch (err: any) {
+      setAttachError(err.message || 'Failed to inspect GitHub repository.');
+    } finally {
+      setIsProcessingAttach(false);
+    }
+  };
+
+  const handleUploadExperienceFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsProcessingAttach(true);
+    setAttachError(null);
+    try {
+      const data: CandidateExperienceInput = await api.uploadExperienceFile(file);
+      const newAttach: ChatAttachment = {
+        id: `att-${Date.now()}`,
+        name: file.name,
+        category: 'interview_experience',
+        status: 'completed',
+        summary: `Reported rounds: ${data.reported_rounds.join(', ')}. Topics: ${data.extracted_topics.join(', ')}.`,
+        extractedData: data
+      };
+      setAttachedItems((prev) => [...prev, newAttach]);
+      setShowAttachmentModal(false);
+
+      const notifyPrompt = `I have uploaded a candidate interview report ("${file.name}").
+Reported rounds: ${data.reported_rounds.join(', ')}.
+High-frequency topics: ${data.extracted_topics.join(', ')}.
+Please prepare me for questions similar to these recruitment rounds.`;
+      await handleSendMessage(notifyPrompt);
+    } catch (err: any) {
+      setAttachError(err.message || 'Failed to parse candidate experience file.');
+    } finally {
+      setIsProcessingAttach(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleParseExperienceText = async () => {
+    if (!pastedExpText.trim()) return;
+    setIsProcessingAttach(true);
+    setAttachError(null);
+    try {
+      const data: CandidateExperienceInput = await api.extractExperience(undefined, pastedExpText);
+      const newAttach: ChatAttachment = {
+        id: `att-${Date.now()}`,
+        name: 'Pasted Interview Report',
+        category: 'interview_experience',
+        status: 'completed',
+        summary: `Reported rounds: ${data.reported_rounds.join(', ')}. Questions: ${data.extracted_questions.length}.`,
+        extractedData: data
+      };
+      setAttachedItems((prev) => [...prev, newAttach]);
+      setPastedExpText('');
+      setShowAttachmentModal(false);
+
+      const notifyPrompt = `I have pasted candidate interview feedback with rounds: ${data.reported_rounds.join(', ')}.
+Questions noted: ${data.extracted_questions.join('; ')}.
+Please tailor my interview simulation to reflect these expectations.`;
+      await handleSendMessage(notifyPrompt);
+    } catch (err: any) {
+      setAttachError(err.message || 'Failed to extract interview experience.');
+    } finally {
+      setIsProcessingAttach(false);
+    }
+  };
+
+  const handleRemoveAttachment = (id: string) => {
+    setAttachedItems((prev) => prev.filter((item) => item.id !== id));
   };
 
   // Helper to render markdown formatting (headers, bold, lists, codeblocks)
@@ -446,10 +693,10 @@ Could you please:
   return (
     <div className="mentor-workspace-container">
       
-      {/* 1. Clear Workspace Header (Light Theme, Restrained Indigo, Mode Switcher) */}
+      {/* 1. Header: Placement Identity & Workspace Controls */}
       <div className="mentor-workspace-header">
         
-        {/* Mentor Title & Active Focus */}
+        {/* Mentor Title & Active Target Role */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <div style={{
             width: '36px',
@@ -479,25 +726,6 @@ Could you please:
               {plan?.target_company && <span> at <strong>{plan.target_company}</strong></span>}
             </div>
           </div>
-        </div>
-
-        {/* 5 Contextual Mode Buttons */}
-        <div className="mentor-modes-nav">
-          {modeDefinitions.map((mode) => {
-            const Icon = mode.icon;
-            const isActive = currentMode === mode.id;
-            return (
-              <button
-                key={mode.id}
-                onClick={() => handleSwitchMode(mode.id)}
-                className={`mentor-mode-btn ${isActive ? 'active' : ''}`}
-                title={mode.tagline}
-              >
-                <Icon size={13} />
-                <span>{mode.label}</span>
-              </button>
-            );
-          })}
         </div>
 
         {/* Action Controls */}
@@ -613,7 +841,7 @@ Could you please:
               /* Useful Welcome State When No Conversation Exists */
               <div style={{
                 margin: 'auto',
-                maxWidth: '560px',
+                maxWidth: '620px',
                 background: 'var(--bg-main)',
                 border: '1px solid var(--border-light)',
                 borderRadius: 'var(--radius-xl)',
@@ -635,7 +863,7 @@ Could you please:
                 </div>
 
                 <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '6px' }}>
-                  Welcome to Your Placement Mentor
+                  Welcome to PrepPilot AI
                 </h2>
 
                 <p style={{ fontSize: '0.86rem', color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: '18px' }}>
@@ -647,13 +875,13 @@ Could you please:
                     </>
                   ) : (
                     <>
-                      I am your senior technical mentor. You haven't configured a target role yet, but you can start general technical practice right now or set up your profile for tailored questions.
+                      I am your senior technical mentor. Let's personalize your placement preparation using your documents, projects, skills, and goals.
                     </>
                   )}
                 </p>
 
-                {/* 5 Quick Starting Actions */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', textAlign: 'left', marginBottom: '20px' }}>
+                {/* 6 Quick Starting Action Chips */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '8px', textAlign: 'left', marginBottom: '20px' }}>
                   {modeDefinitions.map((mode) => {
                     const Icon = mode.icon;
                     return (
@@ -693,16 +921,28 @@ Could you please:
                   })}
                 </div>
 
-                {!plan && onNavigate && (
+                {/* Guided Onboarding Quick Button */}
+                <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap' }}>
                   <button
-                    onClick={() => onNavigate('profile')}
-                    className="btn btn-secondary btn-sm"
+                    onClick={() => setShowAttachmentModal(true)}
+                    className="btn btn-primary btn-sm"
                     style={{ fontSize: '0.78rem' }}
                   >
-                    <span>Configure Target Role & Resume in Preparation Profile</span>
-                    <ArrowRight size={13} />
+                    <Paperclip size={13} />
+                    <span>Attach Preparation Materials (Resume, Job Spec, GitHub)</span>
                   </button>
-                )}
+
+                  {onNavigate && (
+                    <button
+                      onClick={() => onNavigate('profile')}
+                      className="btn btn-secondary btn-sm"
+                      style={{ fontSize: '0.78rem' }}
+                    >
+                      <span>Configure in Profile</span>
+                      <ArrowRight size={13} />
+                    </button>
+                  )}
+                </div>
               </div>
             ) : (
               /* Ongoing Conversation Turns */
@@ -797,7 +1037,7 @@ Could you please:
                         <div style={{ marginTop: '10px', paddingTop: '8px', borderTop: '1px solid var(--border-light)' }}>
                           <button
                             onClick={() => {
-                              setCurrentMode('coding_review');
+                              setCurrentMode('coding');
                               setShowEmbeddedEditor(true);
                             }}
                             className="btn btn-secondary btn-sm"
@@ -819,6 +1059,23 @@ Could you please:
                           >
                             <RotateCcw size={13} color="var(--warning)" />
                             <span>Review in Retention Queue</span>
+                            <ArrowRight size={12} />
+                          </button>
+                        </div>
+                      )}
+
+                      {isMentor && msg.action_type === 'retest_question' && (
+                        <div style={{ marginTop: '10px', paddingTop: '8px', borderTop: '1px solid var(--border-light)' }}>
+                          <button
+                            onClick={() => {
+                              setCurrentMode('retest');
+                              handleSendMessage('Give me an independent retest question on this concept.');
+                            }}
+                            className="btn btn-secondary btn-sm"
+                            style={{ background: 'var(--bg-main)', fontSize: '0.78rem' }}
+                          >
+                            <RotateCcw size={13} color="var(--accent-primary)" />
+                            <span>Test Independently Now</span>
                             <ArrowRight size={12} />
                           </button>
                         </div>
@@ -891,13 +1148,68 @@ Could you please:
             <div ref={messagesEndRef} />
           </div>
 
-          {/* User Input Bar */}
-          <div style={{
-            padding: '12px 18px',
-            background: 'var(--bg-surface)',
-            borderTop: '1px solid var(--border-light)'
-          }}>
-            <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end' }}>
+          {/* Compact ChatGPT-Style 6-Mode Selector Bar (Above composer) */}
+          <div className="mentor-mode-pills-bar">
+            {modeDefinitions.map((mode) => {
+              const Icon = mode.icon;
+              const isActive = currentMode === mode.id;
+              return (
+                <button
+                  key={mode.id}
+                  onClick={() => handleSwitchMode(mode.id)}
+                  className={`mentor-mode-pill ${isActive ? 'active' : ''}`}
+                  title={mode.tagline}
+                >
+                  <Icon size={12} />
+                  <span>{mode.label}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* User Input & Attachment Bar */}
+          <div className="mentor-composer-area">
+            
+            {/* Attached Items Badges Row */}
+            {attachedItems.length > 0 && (
+              <div className="mentor-attachment-chips-row">
+                {attachedItems.map((att) => (
+                  <div key={att.id} className="mentor-attachment-chip">
+                    <FileText size={12} color="var(--accent-primary)" />
+                    <span>{att.name}</span>
+                    <span 
+                      onClick={() => handleRemoveAttachment(att.id)}
+                      className="chip-remove"
+                      title="Remove attachment"
+                    >
+                      <X size={11} />
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
+              
+              {/* Attachment Button (Paperclip) */}
+              <button
+                type="button"
+                onClick={() => setShowAttachmentModal(true)}
+                className="btn btn-secondary"
+                style={{
+                  height: '44px',
+                  width: '44px',
+                  padding: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: 'var(--radius-md)'
+                }}
+                title="Attach resume, company job spec, GitHub repo, or interview experiences"
+              >
+                <Paperclip size={18} color="var(--text-secondary)" />
+              </button>
+
               <textarea
                 ref={textareaRef}
                 value={inputMessage}
@@ -933,8 +1245,9 @@ Could you please:
                 <span>Send</span>
               </button>
             </div>
-            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-              Press <strong>Enter</strong> to send • <strong>Shift + Enter</strong> for a new line
+
+            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+              Press <strong>Enter</strong> to send • <strong>Shift + Enter</strong> for a new line • Mode: <strong>{currentModeInfo.label}</strong>
             </div>
           </div>
         </div>
@@ -951,12 +1264,11 @@ Could you please:
             boxShadow: 'var(--shadow-sm)',
             height: '100%'
           }}>
-            
-            {/* Editor Top Bar: Problem Selector & Run Controls */}
+            {/* Editor Header */}
             <div style={{
               padding: '10px 14px',
-              background: 'var(--bg-main)',
               borderBottom: '1px solid var(--border-light)',
+              background: 'var(--bg-main)',
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
@@ -964,87 +1276,67 @@ Could you please:
               gap: '8px'
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <select
-                  className="form-control"
-                  style={{ width: '200px', fontSize: '0.76rem', height: '30px', padding: '2px 8px' }}
-                  value={selectedQuestion?.id || ''}
-                  onChange={(e) => {
-                    const q = questions.find((x) => x.id === e.target.value);
-                    if (q) handleSelectQuestion(q);
-                  }}
-                >
-                  {questions.map((q) => (
-                    <option key={q.id} value={q.id}>
-                      [{q.language.toUpperCase()}] {q.title}
-                    </option>
-                  ))}
-                </select>
-
-                <span className={`badge ${selectedQuestion?.difficulty === 'easy' ? 'badge-verified' : 'badge-candidate'}`} style={{ fontSize: '0.68rem' }}>
-                  {selectedQuestion?.difficulty.toUpperCase()}
+                <Terminal size={15} color="var(--accent-primary)" />
+                <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                  Isolated Coding Sandbox
                 </span>
-                <span className="badge badge-official" style={{ fontSize: '0.68rem' }}>
-                  {language === 'sql' ? 'SQLite Engine' : 'Python 3.12'}
+                <span className="badge badge-verified" style={{ fontSize: '0.68rem', padding: '1px 6px' }}>
+                  {language.toUpperCase()}
                 </span>
               </div>
 
-              {/* Execution Actions */}
+              {/* Language Toggle & Actions */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <button
+                  onClick={() => setLanguage('sql')}
+                  className={`btn btn-sm ${language === 'sql' ? 'btn-primary' : 'btn-secondary'}`}
+                  style={{ fontSize: '0.72rem', padding: '2px 8px' }}
+                >
+                  SQL (SQLite)
+                </button>
+                <button
+                  onClick={() => setLanguage('python')}
+                  className={`btn btn-sm ${language === 'python' ? 'btn-primary' : 'btn-secondary'}`}
+                  style={{ fontSize: '0.72rem', padding: '2px 8px' }}
+                >
+                  Python 3.12
+                </button>
                 <button
                   onClick={handleResetCode}
                   className="btn btn-secondary btn-sm"
-                  style={{ padding: '3px 7px', fontSize: '0.72rem' }}
-                  title="Reset starter code"
+                  style={{ fontSize: '0.72rem', padding: '2px 6px' }}
+                  title="Reset starter template"
                 >
-                  <RotateCcw size={12} />
-                </button>
-                <button
-                  onClick={handleRunCode}
-                  disabled={isRunningCode || isSubmittingCode}
-                  className="btn btn-secondary btn-sm"
-                  style={{ padding: '3px 10px', fontSize: '0.72rem' }}
-                >
-                  <Play size={12} />
-                  <span>{isRunningCode ? 'Running...' : 'Run'}</span>
-                </button>
-                <button
-                  onClick={handleSubmitCode}
-                  disabled={isRunningCode || isSubmittingCode}
-                  className="btn btn-primary btn-sm"
-                  style={{ padding: '3px 10px', fontSize: '0.72rem' }}
-                >
-                  <Send size={12} />
-                  <span>{isSubmittingCode ? 'Evaluating...' : 'Submit'}</span>
-                </button>
-                <button
-                  onClick={() => setShowEmbeddedEditor(false)}
-                  style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '3px' }}
-                  title="Close Code Editor"
-                >
-                  <X size={15} />
+                  <RotateCcw size={11} />
                 </button>
               </div>
             </div>
 
-            {/* Problem Statement Header */}
+            {/* Problem Statement Drawer */}
             {selectedQuestion && (
               <div style={{
                 padding: '10px 14px',
                 background: 'var(--bg-surface)',
                 borderBottom: '1px solid var(--border-light)',
-                fontSize: '0.78rem'
+                maxHeight: '130px',
+                overflowY: 'auto'
               }}>
-                <div style={{ fontWeight: 700, color: 'var(--text-primary)', marginBottom: '2px' }}>
-                  {selectedQuestion.title}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                  <div style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                    {selectedQuestion.title}
+                  </div>
+                  <span className={`badge ${selectedQuestion.difficulty === 'easy' ? 'badge-verified' : 'badge-candidate'}`} style={{ fontSize: '0.68rem' }}>
+                    {selectedQuestion.difficulty}
+                  </span>
                 </div>
-                <div style={{ color: 'var(--text-secondary)', maxHeight: '60px', overflowY: 'auto', lineHeight: 1.4 }}>
+                <div style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
                   {selectedQuestion.problem_statement}
                 </div>
               </div>
             )}
 
-            {/* Monaco Editor Instance */}
-            <div style={{ flex: 1, minHeight: '260px' }}>
+            {/* Monaco Editor Container */}
+            <div style={{ flex: 1, minHeight: '260px', background: '#1E1E2E' }}>
               <Editor
                 height="100%"
                 language={language === 'sql' ? 'sql' : 'python'}
@@ -1053,6 +1345,7 @@ Could you please:
                 onChange={(val) => setCode(val || '')}
                 options={{
                   fontSize: 13,
+                  fontFamily: 'JetBrains Mono, Menlo, monospace',
                   minimap: { enabled: false },
                   scrollBeyondLastLine: false,
                   automaticLayout: true,
@@ -1062,94 +1355,128 @@ Could you please:
               />
             </div>
 
-            {/* Execution Results Drawer with Mentor Explanation Button */}
-            {executionResult && (
-              <div style={{
-                maxHeight: '180px',
-                overflowY: 'auto',
-                padding: '12px 14px',
-                background: '#1E1E2E',
-                color: '#E2E8F0',
-                borderTop: '1px solid var(--border-light)',
-                fontFamily: 'JetBrains Mono, monospace',
-                fontSize: '0.76rem'
-              }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{
-                      fontWeight: 700,
-                      color: executionResult.status === 'passed' ? '#4ADE80' : '#F87171'
-                    }}>
-                      {executionResult.status === 'passed' ? '✓ ALL TESTS PASSED' : '❌ EXECUTION FAILED'}
-                    </span>
-                    <span style={{ color: '#94A3B8' }}>
-                      ({executionResult.passed_count}/{executionResult.total_count} tests in {executionResult.execution_time_ms}ms)
-                    </span>
-                  </div>
-
-                  {/* Connect Execution to Mentor Button */}
+            {/* Sandbox Controls: Run, Submit & Execution Results */}
+            <div style={{
+              padding: '10px 14px',
+              borderTop: '1px solid var(--border-light)',
+              background: 'var(--bg-main)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: '8px' }}>
                   <button
-                    onClick={handleConnectExecutionToMentor}
-                    disabled={sending}
-                    className="btn btn-sm"
-                    style={{
-                      background: 'var(--accent-primary)',
-                      color: 'white',
-                      fontSize: '0.72rem',
-                      padding: '3px 10px',
-                      borderRadius: 'var(--radius-full)'
-                    }}
+                    onClick={handleRunCode}
+                    disabled={isRunningCode || isSubmittingCode}
+                    className="btn btn-secondary btn-sm"
+                    style={{ fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '6px' }}
                   >
-                    <Sparkles size={11} />
-                    <span>Explain in Mentor</span>
+                    <Play size={12} />
+                    <span>{isRunningCode ? 'Running...' : 'Run Tests'}</span>
+                  </button>
+
+                  <button
+                    onClick={handleSubmitCode}
+                    disabled={isRunningCode || isSubmittingCode}
+                    className="btn btn-primary btn-sm"
+                    style={{ fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '6px' }}
+                  >
+                    <CheckCircle2 size={12} />
+                    <span>{isSubmittingCode ? 'Submitting...' : 'Submit Evaluation'}</span>
                   </button>
                 </div>
 
-                {/* Compilation / Runtime Error */}
-                {executionResult.compilation_or_runtime_error && (
-                  <pre style={{ color: '#F87171', whiteSpace: 'pre-wrap', margin: '4px 0' }}>
-                    {executionResult.compilation_or_runtime_error}
-                  </pre>
+                {/* Problem Selector Dropdown */}
+                {questions.length > 1 && (
+                  <select
+                    value={selectedQuestion?.id || ''}
+                    onChange={(e) => {
+                      const q = questions.find((item) => item.id === e.target.value);
+                      if (q) handleSelectQuestion(q);
+                    }}
+                    className="form-control"
+                    style={{ fontSize: '0.74rem', padding: '2px 8px', width: 'auto', maxWidth: '180px' }}
+                  >
+                    {questions.map((q) => (
+                      <option key={q.id} value={q.id}>
+                        {q.title} ({q.language})
+                      </option>
+                    ))}
+                  </select>
                 )}
-
-                {/* Test Breakdown */}
-                {executionResult.results.map((t, idx) => (
-                  <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', color: t.passed ? '#4ADE80' : '#F87171', margin: '2px 0' }}>
-                    <span>{t.name}</span>
-                    <span>{t.passed ? 'PASSED' : t.error_message || 'FAILED'}</span>
-                  </div>
-                ))}
               </div>
-            )}
+
+              {/* Execution Feedback Panel */}
+              {executionResult && (
+                <div style={{
+                  padding: '10px 12px',
+                  borderRadius: 'var(--radius-md)',
+                  background: executionResult.status === 'passed' ? 'var(--success-bg)' : 'var(--error-bg)',
+                  border: `1px solid ${executionResult.status === 'passed' ? 'var(--success-border)' : 'var(--error-border)'}`,
+                  fontSize: '0.78rem',
+                  color: executionResult.status === 'passed' ? 'var(--success)' : 'var(--error)'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: 700 }}>
+                    <span>
+                      Outcome: {executionResult.status.toUpperCase()} ({executionResult.passed_count}/{executionResult.total_count} tests passed in {executionResult.execution_time_ms}ms)
+                    </span>
+                    <button
+                      onClick={handleConnectExecutionToMentor}
+                      className="btn btn-secondary btn-sm"
+                      style={{ fontSize: '0.7rem', padding: '2px 8px', background: '#FFFFFF' }}
+                      title="Send this execution output to mentor for feedback"
+                    >
+                      <Sparkles size={11} color="var(--accent-primary)" />
+                      <span>Explain in Mentor</span>
+                    </button>
+                  </div>
+
+                  {executionResult.compilation_or_runtime_error && (
+                    <div style={{ marginTop: '6px', fontFamily: 'var(--font-mono)', fontSize: '0.72rem', whiteSpace: 'pre-wrap', color: 'var(--error)' }}>
+                      {executionResult.compilation_or_runtime_error}
+                    </div>
+                  )}
+
+                  {executionResult.results.some((r) => !r.passed) && (
+                    <div style={{ marginTop: '6px', fontSize: '0.72rem' }}>
+                      Failed: {executionResult.results.find((r) => !r.passed)?.name}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         )}
 
-        {/* 4. Compact Contextual Sidebar Panel (Collapsible) */}
+        {/* 4. Collapsible Context Panel (Learning Focus & Ingested Projects) */}
         {showContextPanel && (
           <div className="mentor-context-sidebar">
-            
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '8px', borderBottom: '1px solid var(--border-light)' }}>
+              <span style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                Active Context
+              </span>
+              <span className="badge badge-verified" style={{ fontSize: '0.66rem', padding: '1px 6px' }}>
+                Grounded
+              </span>
+            </div>
+
             {/* Target Role & Opportunity */}
             <div style={{ paddingBottom: '12px', borderBottom: '1px solid var(--border-light)' }}>
-              <div style={{ fontSize: '0.72rem', textTransform: 'uppercase', fontWeight: 700, color: 'var(--text-muted)' }}>
+              <div style={{ fontSize: '0.72rem', textTransform: 'uppercase', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '4px' }}>
                 Target Placement
               </div>
-              <div style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '2px' }}>
+              <div style={{ fontSize: '0.86rem', fontWeight: 700, color: 'var(--text-primary)' }}>
                 {plan?.target_role || 'Software Development Engineer'}
               </div>
               {plan?.target_company && (
                 <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
-                  at <strong>{plan.target_company}</strong>
-                </div>
-              )}
-              {plan?.target_deadline && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.74rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                  <Calendar size={12} color="var(--accent-primary)" />
-                  <span>Interview Date: {plan.target_deadline}</span>
+                  🏢 {plan.target_company}
                 </div>
               )}
             </div>
 
-            {/* Diagnosed Knowledge Gaps (Clickable) */}
+            {/* Diagnosed Knowledge Gaps (Clickable to switch mode) */}
             {plan?.knowledge_gaps && plan.knowledge_gaps.length > 0 && (
               <div style={{ paddingBottom: '12px', borderBottom: '1px solid var(--border-light)' }}>
                 <div style={{ fontSize: '0.72rem', textTransform: 'uppercase', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '6px' }}>
@@ -1161,7 +1488,7 @@ Could you please:
                       key={i}
                       onClick={() => {
                         setSelectedTopic(gap);
-                        setCurrentMode('concept_explanation');
+                        setCurrentMode('learn');
                         handleSendMessage(`Can you help me master this weak area: "${gap}"?`);
                       }}
                       className="badge badge-candidate"
@@ -1215,11 +1542,12 @@ Could you please:
                 {currentModeInfo.label} Guide
               </div>
               <div style={{ color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                {currentMode === 'general_chat' && 'Conversational advisor. Ask anything about placement strategy, timeline, or plan.'}
+                {currentMode === 'interview' && 'One question at a time. Evaluated against rubric depth and adaptive follow-ups.'}
+                {currentMode === 'coding' && 'Monaco sandbox with Python/SQLite execution and error explanation loop.'}
+                {currentMode === 'learn' && '5-step breakdown: diagnosis, analogy, comparison, concrete code, and practice retest.'}
                 {currentMode === 'project_defense' && 'Drill into error boundaries, throughput bottlenecks, and concurrency trade-offs.'}
-                {currentMode === 'concept_explanation' && 'Learn with a 5-step breakdown: diagnosis, analogy, comparison, example, and practice check.'}
-                {currentMode === 'coding_review' && 'Solve live coding challenges with in-memory execution and mentor error feedback.'}
-                {currentMode === 'knowledge_check' && 'Spaced retrieval recall on past misconceptions to build permanent retention.'}
-                {currentMode === 'mentor_chat' && 'Realistic interview simulation. Practice structured answers using STAR and technical depth.'}
+                {currentMode === 'retest' && 'Spaced retrieval recall on past misconceptions to verify permanent retention.'}
               </div>
             </div>
 
@@ -1239,6 +1567,269 @@ Could you please:
         )}
 
       </div>
+
+      {/* 5. Unified Attachment Experience Modal */}
+      {showAttachmentModal && (
+        <div className="mentor-attachment-modal-overlay">
+          <div className="mentor-attachment-modal-card">
+            
+            {/* Modal Header */}
+            <div style={{
+              padding: '14px 18px',
+              borderBottom: '1px solid var(--border-light)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Paperclip size={18} color="var(--accent-primary)" />
+                <h3 style={{ fontSize: '1rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                  Attach Preparation Materials
+                </h3>
+              </div>
+              <button
+                onClick={() => setShowAttachmentModal(false)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Category Tabs */}
+            <div className="mentor-attachment-tabs">
+              <button
+                onClick={() => setActiveAttachTab('resume')}
+                className={`mentor-attachment-tab-btn ${activeAttachTab === 'resume' ? 'active' : ''}`}
+              >
+                1. Resume (PDF/DOCX)
+              </button>
+              <button
+                onClick={() => setActiveAttachTab('company')}
+                className={`mentor-attachment-tab-btn ${activeAttachTab === 'company' ? 'active' : ''}`}
+              >
+                2. Company Job Spec
+              </button>
+              <button
+                onClick={() => setActiveAttachTab('github')}
+                className={`mentor-attachment-tab-btn ${activeAttachTab === 'github' ? 'active' : ''}`}
+              >
+                3. GitHub Project
+              </button>
+              <button
+                onClick={() => setActiveAttachTab('experience')}
+                className={`mentor-attachment-tab-btn ${activeAttachTab === 'experience' ? 'active' : ''}`}
+              >
+                4. Interview Report
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div style={{ padding: '18px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              
+              {attachError && (
+                <div style={{
+                  padding: '8px 12px',
+                  background: 'var(--error-bg)',
+                  border: '1px solid var(--error-border)',
+                  color: 'var(--error)',
+                  fontSize: '0.8rem',
+                  borderRadius: 'var(--radius-md)'
+                }}>
+                  {attachError}
+                </div>
+              )}
+
+              {/* Tab 1: Resume */}
+              {activeAttachTab === 'resume' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <p style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', margin: 0 }}>
+                    Upload your resume in PDF or DOCX format to extract education, technical skills, and projects for personalized questioning.
+                  </p>
+                  <label style={{
+                    border: '2px dashed var(--border-light)',
+                    borderRadius: 'var(--radius-lg)',
+                    padding: '24px',
+                    textAlign: 'center',
+                    cursor: 'pointer',
+                    background: 'var(--bg-main)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '8px'
+                  }}>
+                    <Upload size={24} color="var(--accent-primary)" />
+                    <span style={{ fontSize: '0.86rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                      {isProcessingAttach ? 'Extracting Resume Data...' : 'Choose or Drop Resume (PDF, DOCX)'}
+                    </span>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                      Max 10MB • Safe local extraction
+                    </span>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".pdf,.docx,.doc"
+                      onChange={handleUploadResumeFile}
+                      style={{ display: 'none' }}
+                      disabled={isProcessingAttach}
+                    />
+                  </label>
+                </div>
+              )}
+
+              {/* Tab 2: Company Job Spec */}
+              {activeAttachTab === 'company' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <p style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', margin: 0 }}>
+                    Upload official company-issued role requirements, job descriptions, or paste text to extract required vs preferred skills.
+                  </p>
+                  
+                  {/* File upload option */}
+                  <label style={{
+                    border: '1px dashed var(--border-light)',
+                    borderRadius: 'var(--radius-md)',
+                    padding: '12px',
+                    textAlign: 'center',
+                    cursor: 'pointer',
+                    background: 'var(--bg-main)',
+                    fontSize: '0.8rem',
+                    color: 'var(--text-primary)',
+                    display: 'block'
+                  }}>
+                    <span>📎 Upload Job Description File (PDF, DOCX, TXT)</span>
+                    <input
+                      type="file"
+                      accept=".pdf,.docx,.doc,.txt"
+                      onChange={handleUploadCompanyDocFile}
+                      style={{ display: 'none' }}
+                      disabled={isProcessingAttach}
+                    />
+                  </label>
+
+                  <div style={{ textAlign: 'center', fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                    — or paste the job description text below —
+                  </div>
+
+                  <textarea
+                    value={pastedCompanyText}
+                    onChange={(e) => setPastedCompanyText(e.target.value)}
+                    placeholder="Paste technical requirements, eligibility criteria, and responsibilities..."
+                    className="form-control"
+                    rows={4}
+                    style={{ fontSize: '0.82rem' }}
+                  />
+
+                  <button
+                    onClick={handleParseCompanyText}
+                    disabled={isProcessingAttach || !pastedCompanyText.trim()}
+                    className="btn btn-primary btn-sm"
+                    style={{ alignSelf: 'flex-end' }}
+                  >
+                    {isProcessingAttach ? 'Parsing Requirements...' : 'Extract & Attach Company Spec'}
+                  </button>
+                </div>
+              )}
+
+              {/* Tab 3: GitHub Project */}
+              {activeAttachTab === 'github' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <p style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', margin: 0 }}>
+                    Provide a public GitHub repository URL to inspect tech stack, architecture, and formulate project-defense questions.
+                  </p>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <input
+                      type="url"
+                      value={githubUrlInput}
+                      onChange={(e) => setGithubUrlInput(e.target.value)}
+                      placeholder="https://github.com/username/repository"
+                      className="form-control"
+                      style={{ fontSize: '0.84rem' }}
+                    />
+                    <button
+                      onClick={handleAnalyzeGithubRepo}
+                      disabled={isProcessingAttach || !githubUrlInput.trim()}
+                      className="btn btn-primary btn-sm"
+                      style={{ whiteSpace: 'nowrap' }}
+                    >
+                      {isProcessingAttach ? 'Inspecting...' : 'Analyze Repo'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Tab 4: Interview Experience */}
+              {activeAttachTab === 'experience' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <p style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', margin: 0 }}>
+                    Upload or paste interview experiences from previous campus/off-campus candidate reports to extract rounds and high-frequency questions.
+                  </p>
+
+                  <label style={{
+                    border: '1px dashed var(--border-light)',
+                    borderRadius: 'var(--radius-md)',
+                    padding: '12px',
+                    textAlign: 'center',
+                    cursor: 'pointer',
+                    background: 'var(--bg-main)',
+                    fontSize: '0.8rem',
+                    color: 'var(--text-primary)',
+                    display: 'block'
+                  }}>
+                    <span>📎 Upload Experience File (PDF, DOCX, TXT)</span>
+                    <input
+                      type="file"
+                      accept=".pdf,.docx,.doc,.txt"
+                      onChange={handleUploadExperienceFile}
+                      style={{ display: 'none' }}
+                      disabled={isProcessingAttach}
+                    />
+                  </label>
+
+                  <div style={{ textAlign: 'center', fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                    — or paste candidate experience text —
+                  </div>
+
+                  <textarea
+                    value={pastedExpText}
+                    onChange={(e) => setPastedExpText(e.target.value)}
+                    placeholder="Paste interview experience details (rounds, questions asked, difficulty)..."
+                    className="form-control"
+                    rows={4}
+                    style={{ fontSize: '0.82rem' }}
+                  />
+
+                  <button
+                    onClick={handleParseExperienceText}
+                    disabled={isProcessingAttach || !pastedExpText.trim()}
+                    className="btn btn-primary btn-sm"
+                    style={{ alignSelf: 'flex-end' }}
+                  >
+                    {isProcessingAttach ? 'Extracting Questions...' : 'Extract & Attach Experience'}
+                  </button>
+                </div>
+              )}
+
+            </div>
+
+            {/* Modal Footer */}
+            <div style={{
+              padding: '10px 18px',
+              borderTop: '1px solid var(--border-light)',
+              background: 'var(--bg-main)',
+              display: 'flex',
+              justifyContent: 'flex-end'
+            }}>
+              <button
+                onClick={() => setShowAttachmentModal(false)}
+                className="btn btn-secondary btn-sm"
+              >
+                Close
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };

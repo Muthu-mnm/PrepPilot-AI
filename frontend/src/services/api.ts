@@ -8,12 +8,14 @@ import {
   ProgressOverview,
   RevisionTaskItem,
   ResumeExtractedData,
+  CompanyDocExtractedData,
   GitHubRepoAnalysis,
   CandidateExperienceInput,
   PreparationSetupRequest,
   PreparationPlanResponse,
   MilestoneItem,
-  MentorChatMessage
+  MentorChatMessage,
+  LearningEventCreate
 } from '../types';
 
 const API_BASE = '/api';
@@ -250,6 +252,43 @@ class ApiService {
     code_snippet?: string;
   }): Promise<MentorChatMessage> {
     return this.request<MentorChatMessage>('/prep/mentor-message', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async uploadCompanyDoc(file: File): Promise<CompanyDocExtractedData> {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const token = this.getToken();
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(`${API_BASE}/prep/upload-company-doc`, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.detail || 'Failed to parse company skill specification document.');
+    }
+    return response.json();
+  }
+
+  async parseCompanyText(text: string): Promise<CompanyDocExtractedData> {
+    return this.request<CompanyDocExtractedData>('/prep/parse-company-text', {
+      method: 'POST',
+      body: JSON.stringify({ text }),
+    });
+  }
+
+  async recordLearningEvent(data: LearningEventCreate): Promise<{ status: string; id: string }> {
+    return this.request<{ status: string; id: string }>('/progress/record-event', {
       method: 'POST',
       body: JSON.stringify(data),
     });
