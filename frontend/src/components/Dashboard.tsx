@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { 
   ArrowRight, 
   CheckCircle, 
-  Sparkles, 
+  Compass, 
   Clock, 
   Layers, 
   ChevronRight, 
@@ -163,7 +163,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
                   fontSize: '0.84rem'
                 }}
               >
-                <Sparkles size={16} color="#4338CA" />
+                <Compass size={16} color="#4338CA" />
                 <span>Continue with My Mentor</span>
                 <ArrowRight size={15} color="#4338CA" />
               </button>
@@ -343,7 +343,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
         {/* Right Column: Quick Practice Launchpad */}
         <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Sparkles size={18} color="var(--accent-primary)" />
+            <Compass size={18} color="var(--accent-primary)" />
             <h3 style={{ fontSize: '1.1rem', fontWeight: 800, margin: 0 }}>
               Quick Practice Launchpad
             </h3>
@@ -431,7 +431,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
             className="btn btn-primary btn-sm"
             style={{ width: '100%', marginTop: 'auto', padding: '9px 14px' }}
           >
-            <Sparkles size={14} />
+            <Compass size={14} />
             <span>Open My Mentor Room</span>
           </button>
         </div>

@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Editor from '@monaco-editor/react';
 import { 
-  Sparkles, 
+  Compass,
+  MessageSquare,
   Send, 
   Code2, 
   CheckCircle2, 
@@ -140,7 +141,7 @@ export const UnifiedMentor: React.FC<UnifiedMentorProps> = ({
     {
       id: 'general_chat',
       label: 'General Chat',
-      icon: Sparkles,
+      icon: MessageSquare,
       tagline: 'Conversational Guidance, Onboarding & Preparation Strategy',
       placeholder: 'Ask questions, discuss your target role, or build your prep plan...',
       starterText: 'Hello Mentor, I would like to review my overall preparation plan and next priorities.'
@@ -870,7 +871,7 @@ Please tailor my interview simulation to reflect these expectations.`;
                 /* Clean ChatGPT-Style Welcome State */
                 <div className="mentor-welcome-hero">
                   <div className="welcome-badge-icon">
-                    <Sparkles size={20} />
+                    <Compass size={20} />
                   </div>
 
                   <h2 className="welcome-hero-heading">
@@ -935,7 +936,7 @@ Please tailor my interview simulation to reflect these expectations.`;
                     <div key={msg.id || idx} className="turn-mentor-wrap">
                       <div className="turn-mentor-header">
                         <div className="turn-mentor-avatar">
-                          <Sparkles size={13} />
+                          <GraduationCap size={13} />
                         </div>
                         <span className="turn-mentor-title">Mentor</span>
                         {msg.mode && (
@@ -1424,7 +1425,7 @@ Please tailor my interview simulation to reflect these expectations.`;
                       style={{ fontSize: '0.7rem', padding: '2px 8px', background: '#FFFFFF' }}
                       title="Send this execution output to mentor for feedback"
                     >
-                      <Sparkles size={11} color="var(--accent-primary)" />
+                      <MessageSquare size={11} color="var(--accent-primary)" />
                       <span>Explain in Mentor</span>
                     </button>
                   </div>

@@ -5,7 +5,8 @@ import {
   Layers, 
   BookOpen, 
   Target, 
-  Sparkles, 
+  Compass,
+  GraduationCap, 
   Upload, 
   CheckCircle2, 
   AlertCircle, 
@@ -808,7 +809,7 @@ export const PrepProfile: React.FC<PrepProfileProps> = ({ onPlanCreated, onNavig
             className="btn btn-primary"
             style={{ padding: '14px 24px', fontSize: '1rem', fontWeight: 700 }}
           >
-            <Sparkles size={18} />
+            <Compass size={18} />
             <span>{isGeneratingPlan ? 'Synthesizing Your Preparation Plan...' : 'Generate / Update Preparation Plan'}</span>
             <ArrowRight size={18} />
           </button>
@@ -831,7 +832,7 @@ export const PrepProfile: React.FC<PrepProfileProps> = ({ onPlanCreated, onNavig
                   </div>
                 </div>
                 <button onClick={onNavigateToMentor} className="btn btn-primary btn-sm">
-                  <Sparkles size={14} />
+                  <GraduationCap size={14} />
                   <span>Start with My Mentor</span>
                   <ArrowRight size={14} />
                 </button>
@@ -1110,7 +1111,7 @@ export const PrepProfile: React.FC<PrepProfileProps> = ({ onPlanCreated, onNavig
         ) : (
           /* Empty plan prompt */
           <div className="card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '350px', textAlign: 'center', padding: '40px' }}>
-            <Sparkles size={36} color="var(--accent-primary)" style={{ marginBottom: '12px' }} />
+            <Compass size={36} color="var(--accent-primary)" style={{ marginBottom: '12px' }} />
             <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '8px' }}>
               No Active Plan Generated Yet
             </h3>

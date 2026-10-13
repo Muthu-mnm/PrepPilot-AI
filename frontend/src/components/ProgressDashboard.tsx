@@ -10,7 +10,6 @@ import {
   Layers,
   ArrowRight,
   Code2,
-  Sparkles,
   RotateCcw,
   Check
 } from 'lucide-react';
@@ -216,7 +215,7 @@ export const ProgressDashboard: React.FC<ProgressDashboardProps> = ({ onNavigate
                     className="btn btn-primary btn-sm"
                     style={{ fontSize: '0.78rem' }}
                   >
-                    <Sparkles size={13} />
+                    <RotateCcw size={13} />
                     <span>Retest with Mentor</span>
                   </button>
 

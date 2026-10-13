@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { 
-  Sparkles, 
+  Compass,
+  GraduationCap,
   BarChart3, 
   Target, 
   LogOut, 
@@ -57,7 +58,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     'mentor';
 
   const secondaryNavItems = [
-    { id: 'mentor', label: 'My Mentor', icon: Sparkles },
+    { id: 'mentor', label: 'My Mentor', icon: GraduationCap },
     { id: 'progress', label: 'My Progress', icon: BarChart3 },
     { id: 'profile', label: 'My Profile', icon: Target },
   ];
@@ -90,7 +91,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <div className="sidebar-header">
         <div className="brand-logo-row">
           <div className="brand-icon-wrap" title="PrepPilot AI Placement Mentor">
-            <Sparkles size={18} />
+            <Compass size={18} />
           </div>
           <div className="brand-title-wrap">
             <span className="brand-title">PrepPilot</span>

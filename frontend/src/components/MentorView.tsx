@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { 
-  Sparkles, 
+  GraduationCap, 
   Lightbulb, 
   CheckCircle2, 
   XCircle, 
@@ -102,7 +102,7 @@ for i, num in enumerate(nums):
 
       <div className="card">
         <h2 style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Sparkles size={20} color="var(--accent-primary)" />
+          <GraduationCap size={20} color="var(--accent-primary)" />
           <span>{curr.title}</span>
         </h2>
 

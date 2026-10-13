@@ -7,7 +7,6 @@ import {
   CheckCircle, 
   XCircle, 
   Clock, 
-  Sparkles, 
   Database, 
   FileCode,
   AlertCircle
@@ -271,7 +270,7 @@ export const CodingWorkspace: React.FC = () => {
               {executionResult.ai_failure_explanation && (
                 <div style={{ marginTop: '14px', padding: '14px', background: 'var(--accent-light)', border: '1px solid var(--accent-border)', borderRadius: 'var(--radius-md)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700, color: 'var(--accent-primary)', fontSize: '0.88rem', marginBottom: '6px' }}>
-                    <Sparkles size={16} />
+                    <FileCode size={16} />
                     <span>Diagnostic Feedback & Code Analysis</span>
                   </div>
                   <div style={{ fontSize: '0.85rem', color: 'var(--text-primary)', lineHeight: 1.6, whiteSpace: 'pre-line' }}>

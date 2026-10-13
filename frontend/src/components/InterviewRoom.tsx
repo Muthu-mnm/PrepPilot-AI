@@ -8,7 +8,6 @@ import {
   AlertCircle, 
   HelpCircle,
   Clock,
-  Sparkles,
   ArrowRight
 } from 'lucide-react';
 import { InterviewSession, Turn } from '../types';
