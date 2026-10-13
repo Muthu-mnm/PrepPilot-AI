@@ -75,6 +75,7 @@ class PreparationPlanResponse(BaseModel):
 class PlanUpdateRequest(BaseModel):
     milestones: List[MilestoneItem]
     knowledge_gaps: Optional[List[str]] = None
+    readiness_diagnostic: Optional[str] = None
 
 class MentorChatMessageRequest(BaseModel):
     message: str

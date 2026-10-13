@@ -232,7 +232,7 @@ class ApiService {
     return this.request<PreparationPlanResponse | null>('/prep/current-plan');
   }
 
-  async updatePlan(data: { milestones: MilestoneItem[]; knowledge_gaps?: string[] }): Promise<PreparationPlanResponse> {
+  async updatePlan(data: { milestones: MilestoneItem[]; knowledge_gaps?: string[]; readiness_diagnostic?: string }): Promise<PreparationPlanResponse> {
     return this.request<PreparationPlanResponse>('/prep/update-plan', {
       method: 'PUT',
       body: JSON.stringify(data),

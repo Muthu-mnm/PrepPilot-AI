@@ -87,7 +87,8 @@ async def get_me(current_user: dict = Depends(get_current_user)):
 async def update_profile(payload: UserProfileUpdate, current_user: dict = Depends(get_current_user)):
     db = get_database()
     user_id = str(current_user["_id"])
-    update_data = {k: v for k, v in payload.dict().items() if v is not None}
+    payload_data = payload.model_dump() if hasattr(payload, "model_dump") else payload.dict()
+    update_data = {k: v for k, v in payload_data.items() if v is not None}
     if update_data:
         await db["users"].update_one({"_id": user_id}, {"$set": update_data})
         current_user.update(update_data)

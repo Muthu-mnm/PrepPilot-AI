@@ -1,26 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { Dashboard } from './components/Dashboard';
-import { CompanyExplorer } from './components/CompanyExplorer';
-import { InterviewRoom } from './components/InterviewRoom';
-import { CodingWorkspace } from './components/CodingWorkspace';
-import { MentorView } from './components/MentorView';
-import { ProgressDashboard } from './components/ProgressDashboard';
-import { AuthModal } from './components/AuthModal';
-import { PrepSetup } from './components/PrepSetup';
 import { UnifiedMentor } from './components/UnifiedMentor';
-import { User, PreparationPlanResponse } from './types';
+import { ProgressDashboard } from './components/ProgressDashboard';
+import { PrepProfile } from './components/PrepProfile';
+import { AuthModal } from './components/AuthModal';
+import { User } from './types';
 import { api } from './services/api';
 
 export const App: React.FC = () => {
-  const [currentTab, setCurrentTab] = useState<string>('dashboard');
+  const [currentTab, setCurrentTab] = useState<string>('home');
   const [user, setUser] = useState<User | null>(null);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
-  const [interviewConfig, setInterviewConfig] = useState<{
-    companyId?: string;
-    role?: string;
-    track?: string;
-  }>({});
+  const [mentorInitialMode, setMentorInitialMode] = useState<
+    'mentor_chat' | 'project_defense' | 'concept_explanation' | 'coding_review' | 'knowledge_check'
+  >('mentor_chat');
 
   useEffect(() => {
     // Check for existing token
@@ -35,13 +29,31 @@ export const App: React.FC = () => {
     }
   }, []);
 
-  const handleStartInterview = (companyId: string, roleTitle: string, track: string) => {
-    setInterviewConfig({
-      companyId,
-      role: roleTitle,
-      track
-    });
-    setCurrentTab('interview');
+  const handleNavigate = (tab: string, mode?: 'mentor_chat' | 'project_defense' | 'concept_explanation' | 'coding_review' | 'knowledge_check') => {
+    if (mode) {
+      setMentorInitialMode(mode);
+    }
+    // Route aliases to the 4 canonical tabs
+    if (tab === 'dashboard') {
+      setCurrentTab('home');
+    } else if (tab === 'setup') {
+      setCurrentTab('profile');
+    } else if (tab === 'revisions') {
+      setCurrentTab('progress');
+    } else if (tab === 'coding') {
+      setMentorInitialMode('coding_review');
+      setCurrentTab('mentor');
+    } else if (tab === 'interview') {
+      setMentorInitialMode('mentor_chat');
+      setCurrentTab('mentor');
+    } else if (tab === 'mastery') {
+      setMentorInitialMode('concept_explanation');
+      setCurrentTab('mentor');
+    } else if (tab === 'companies') {
+      setCurrentTab('profile');
+    } else {
+      setCurrentTab(tab);
+    }
   };
 
   const handleLogout = () => {
@@ -49,12 +61,35 @@ export const App: React.FC = () => {
     setUser(null);
   };
 
+  // Canonical tab display label
+  const getTabTitle = (tab: string) => {
+    switch (tab) {
+      case 'home':
+      case 'dashboard':
+        return 'Home';
+      case 'mentor':
+      case 'interview':
+      case 'coding':
+      case 'mastery':
+        return 'My Mentor';
+      case 'progress':
+      case 'revisions':
+        return 'My Progress';
+      case 'profile':
+      case 'setup':
+      case 'companies':
+        return 'Preparation Profile';
+      default:
+        return 'Home';
+    }
+  };
+
   return (
     <div className="app-container">
-      {/* Navigation Sidebar */}
+      {/* 4-Destination Primary Sidebar */}
       <Sidebar
         currentTab={currentTab}
-        setCurrentTab={setCurrentTab}
+        setCurrentTab={(tab) => handleNavigate(tab)}
         user={user}
         onLogout={handleLogout}
         onOpenAuth={() => setIsAuthOpen(true)}
@@ -69,16 +104,16 @@ export const App: React.FC = () => {
               PrepPilot AI Placement Platform
             </span>
             <span style={{ color: 'var(--border-light)' }}>/</span>
-            <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)', textTransform: 'capitalize' }}>
-              {currentTab.replace('_', ' ')}
+            <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+              {getTabTitle(currentTab)}
             </span>
           </div>
 
-          {/* Clean User & Track Information */}
+          {/* User & Track Information */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             {user && (
               <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
-                {user.target_role || 'Software Engineering Track'}
+                {user.target_role || 'AI & Full Stack Engineer Track'}
               </span>
             )}
           </div>
@@ -86,52 +121,33 @@ export const App: React.FC = () => {
 
         {/* View Router */}
         <div className="content-body">
-          {currentTab === 'dashboard' && (
-            <Dashboard user={user} onNavigate={(tab) => setCurrentTab(tab)} />
+          {(currentTab === 'home' || currentTab === 'dashboard') && (
+            <Dashboard 
+              user={user} 
+              onNavigate={(tab) => handleNavigate(tab)} 
+            />
           )}
 
-          {currentTab === 'mentor' && (
+          {(currentTab === 'mentor' || currentTab === 'interview' || currentTab === 'coding' || currentTab === 'mastery') && (
             <UnifiedMentor 
-              onNavigateToCoding={() => setCurrentTab('coding')}
-              onNavigateToSetup={() => setCurrentTab('setup')}
-              onNavigateToRevisions={() => setCurrentTab('revisions')}
+              initialMode={mentorInitialMode}
+              onNavigate={(tab) => handleNavigate(tab)}
+              onNavigateToSetup={() => handleNavigate('profile')}
+              onNavigateToRevisions={() => handleNavigate('progress')}
             />
           )}
 
-          {currentTab === 'setup' && (
-            <PrepSetup
-              onPlanCreated={() => setCurrentTab('mentor')}
-              onNavigateToMentor={() => setCurrentTab('mentor')}
+          {(currentTab === 'progress' || currentTab === 'revisions') && (
+            <ProgressDashboard 
+              onNavigate={(tab) => handleNavigate(tab)} 
             />
           )}
 
-          {currentTab === 'coding' && (
-            <CodingWorkspace />
-          )}
-
-          {currentTab === 'interview' && (
-            <InterviewRoom
-              initialCompanyId={interviewConfig.companyId}
-              initialRole={interviewConfig.role || 'Software Development Engineer'}
-              initialTrack={interviewConfig.track || 'technical_interview'}
-              onFinish={() => setCurrentTab('progress')}
+          {(currentTab === 'profile' || currentTab === 'setup' || currentTab === 'companies') && (
+            <PrepProfile
+              onNavigateToMentor={() => handleNavigate('mentor')}
+              onPlanCreated={() => handleNavigate('mentor')}
             />
-          )}
-
-          {currentTab === 'mastery' && (
-            <MentorView />
-          )}
-
-          {currentTab === 'progress' && (
-            <ProgressDashboard />
-          )}
-
-          {currentTab === 'revisions' && (
-            <ProgressDashboard />
-          )}
-
-          {currentTab === 'companies' && (
-            <CompanyExplorer onStartInterview={handleStartInterview} />
           )}
         </div>
       </main>

@@ -346,9 +346,9 @@ Respond ONLY with valid JSON matching this schema:
             "strengths_summary": plan_json.get("strengths_summary", []),
             "knowledge_gaps": plan_json.get("knowledge_gaps", []),
             "project_defense_questions": plan_json.get("project_defense_questions", []),
-            "milestones": [m.dict() for m in milestones],
+            "milestones": [m.model_dump() if hasattr(m, "model_dump") else m.dict() for m in milestones],
             "evidence_notes": plan_json.get("evidence_notes", ""),
-            "setup_data": setup.dict(),
+            "setup_data": setup.model_dump() if hasattr(setup, "model_dump") else setup.dict(),
             "created_at": now_iso,
             "updated_at": now_iso
         }

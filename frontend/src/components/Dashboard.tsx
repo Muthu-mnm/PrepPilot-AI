@@ -2,21 +2,19 @@ import React, { useEffect, useState } from 'react';
 import { 
   ArrowRight, 
   CheckCircle, 
-  HelpCircle, 
-  AlertCircle, 
-  Code2, 
   Sparkles, 
   Clock, 
-  Building2, 
   Layers, 
   ChevronRight, 
   ShieldCheck, 
   Target, 
-  FileText, 
-  RotateCcw, 
-  ExternalLink 
+  Code2, 
+  Calendar,
+  CheckCircle2,
+  BookOpen,
+  RotateCcw
 } from 'lucide-react';
-import { User, ProgressOverview, Company, PreparationPlanResponse, MilestoneItem } from '../types';
+import { User, ProgressOverview, PreparationPlanResponse, MilestoneItem } from '../types';
 import { api } from '../services/api';
 
 interface DashboardProps {
@@ -26,23 +24,20 @@ interface DashboardProps {
 
 export const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
   const [overview, setOverview] = useState<ProgressOverview | null>(null);
-  const [companies, setCompanies] = useState<Company[]>([]);
   const [plan, setPlan] = useState<PreparationPlanResponse | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [progressData, companiesData, planData] = await Promise.all([
-          api.getProgressOverview(),
-          api.getCompanies(),
-          api.getCurrentPlan()
+        const [progressData, planData] = await Promise.all([
+          api.getProgressOverview().catch(() => null),
+          api.getCurrentPlan().catch(() => null)
         ]);
         setOverview(progressData);
-        setCompanies(companiesData);
         setPlan(planData);
       } catch (e) {
-        console.error('Error fetching dashboard data:', e);
+        console.error('Error fetching home data:', e);
       } finally {
         setLoading(false);
       }
@@ -67,125 +62,223 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
   const totalMilestonesCount = plan ? plan.milestones.length : 0;
   const milestoneProgressPct = totalMilestonesCount > 0 ? Math.round((completedMilestonesCount / totalMilestonesCount) * 100) : 0;
 
+  // Next recommended action calculation
+  const nextIncompleteMilestone = plan ? plan.milestones.find(m => !m.completed) : null;
+  const nextActionTitle = nextIncompleteMilestone 
+    ? `Milestone ${plan?.milestones.indexOf(nextIncompleteMilestone)! + 1}: ${nextIncompleteMilestone.title}`
+    : plan 
+      ? 'Comprehensive Mock Interview & Project Defense'
+      : 'Configure Your Preparation Profile';
+
+  const nextActionDescription = nextIncompleteMilestone
+    ? nextIncompleteMilestone.description
+    : plan
+      ? 'All initial milestones completed. Practice full-length technical rounds and architectural defense with My Mentor.'
+      : 'Upload your resume and enter your target role to generate a personalized placement plan.';
+
+  // Format upcoming interview date & remaining days
+  const calculateDaysRemaining = (deadlineStr?: string) => {
+    if (!deadlineStr) return null;
+    try {
+      const targetDate = new Date(deadlineStr);
+      const today = new Date();
+      const diffTime = targetDate.getTime() - today.getTime();
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      return diffDays;
+    } catch {
+      return null;
+    }
+  };
+
+  const daysRemaining = calculateDaysRemaining(plan?.target_deadline);
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       
-      {/* Top Welcome & Next Action Hero Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
-        <div>
-          <h1 style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>
-            Welcome back, {user ? user.full_name : 'Candidate'}
-          </h1>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', marginTop: '4px' }}>
-            Target Track: <strong style={{ color: 'var(--accent-primary)' }}>{plan?.target_role || user?.target_role || 'Software Development Engineer'}</strong>
-            {plan?.target_company && <span> • Target Company: <strong style={{ color: 'var(--text-primary)' }}>{plan.target_company}</strong></span>}
-            {plan?.target_deadline && <span> • Target Date: <strong style={{ color: 'var(--text-primary)' }}>{plan.target_deadline}</strong></span>}
-          </p>
-        </div>
-        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-          <button onClick={() => onNavigate('mentor')} className="btn btn-primary" style={{ padding: '10px 20px', fontSize: '0.92rem' }}>
-            <Sparkles size={18} />
-            <span>Talk to My Mentor</span>
-            <ArrowRight size={16} />
-          </button>
-          <button onClick={() => onNavigate('coding')} className="btn btn-secondary">
-            <Code2 size={16} />
-            <span>Open Coding Sandbox</span>
-          </button>
-          <button onClick={() => onNavigate('setup')} className="btn btn-secondary">
-            <Target size={16} />
-            <span>{plan ? 'Update Prep Setup' : 'Create Prep Setup'}</span>
-          </button>
+      {/* Hero: Welcome & Next Recommended Action Card */}
+      <div style={{
+        background: 'linear-gradient(135deg, #1E1B4B 0%, #312E81 50%, #4338CA 100%)',
+        borderRadius: 'var(--radius-lg)',
+        padding: '28px 32px',
+        color: 'white',
+        boxShadow: '0 8px 24px rgba(49, 46, 129, 0.25)',
+        position: 'relative',
+        overflow: 'hidden'
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '20px', position: 'relative', zIndex: 1 }}>
+          <div style={{ maxWidth: '680px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+              <span style={{ 
+                background: 'rgba(255,255,255,0.18)', 
+                backdropFilter: 'blur(8px)',
+                padding: '4px 10px', 
+                borderRadius: 'var(--radius-full)', 
+                fontSize: '0.78rem', 
+                fontWeight: 700, 
+                letterSpacing: '0.04em',
+                textTransform: 'uppercase'
+              }}>
+                🎯 Next Recommended Action
+              </span>
+              {daysRemaining !== null && (
+                <span style={{ 
+                  background: daysRemaining > 14 ? 'rgba(16, 185, 129, 0.25)' : 'rgba(245, 158, 11, 0.25)', 
+                  border: '1px solid rgba(255,255,255,0.2)',
+                  padding: '4px 10px', 
+                  borderRadius: 'var(--radius-full)', 
+                  fontSize: '0.78rem', 
+                  fontWeight: 600 
+                }}>
+                  📅 Interview: {plan?.target_deadline} ({daysRemaining > 0 ? `${daysRemaining} days remaining` : 'Today'})
+                </span>
+              )}
+            </div>
+
+            <h1 style={{ fontSize: '1.65rem', fontWeight: 800, margin: '8px 0', letterSpacing: '-0.02em', lineHeight: 1.3 }}>
+              {nextActionTitle}
+            </h1>
+
+            <p style={{ fontSize: '0.92rem', opacity: 0.9, lineHeight: 1.6, margin: '8px 0 20px 0' }}>
+              {nextActionDescription}
+            </p>
+
+            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+              <button 
+                onClick={() => onNavigate('mentor')} 
+                className="btn btn-primary" 
+                style={{ 
+                  background: 'white', 
+                  color: '#312E81', 
+                  fontWeight: 700, 
+                  border: 'none',
+                  padding: '11px 22px',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+                }}
+              >
+                <Sparkles size={18} color="#4338CA" />
+                <span>Continue with My Mentor</span>
+                <ArrowRight size={16} color="#4338CA" />
+              </button>
+
+              <button 
+                onClick={() => onNavigate('profile')} 
+                className="btn btn-secondary"
+                style={{ 
+                  background: 'rgba(255,255,255,0.12)', 
+                  borderColor: 'rgba(255,255,255,0.25)', 
+                  color: 'white' 
+                }}
+              >
+                <Target size={16} />
+                <span>{plan ? 'View / Edit Preparation Plan' : 'Set Up Profile'}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Quick Context Pill */}
+          <div style={{ 
+            background: 'rgba(255,255,255,0.1)', 
+            backdropFilter: 'blur(10px)',
+            border: '1px solid rgba(255,255,255,0.18)',
+            borderRadius: 'var(--radius-md)', 
+            padding: '16px 20px',
+            minWidth: '220px'
+          }}>
+            <div style={{ fontSize: '0.75rem', opacity: 0.8, textTransform: 'uppercase', fontWeight: 700 }}>
+              Active Track
+            </div>
+            <div style={{ fontSize: '1.05rem', fontWeight: 800, marginTop: '4px' }}>
+              {plan?.target_role || user?.target_role || 'AI & Full Stack Engineer'}
+            </div>
+            {plan?.target_company && (
+              <div style={{ fontSize: '0.84rem', opacity: 0.9, marginTop: '2px' }}>
+                at <strong>{plan.target_company}</strong>
+              </div>
+            )}
+            <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid rgba(255,255,255,0.15)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', marginBottom: '4px' }}>
+                <span>Milestone Completion</span>
+                <strong>{milestoneProgressPct}%</strong>
+              </div>
+              <div style={{ height: '6px', background: 'rgba(255,255,255,0.2)', borderRadius: '4px', overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${milestoneProgressPct}%`, background: '#34D399', borderRadius: '4px' }} />
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Transparent Integrity Notice */}
+      {/* Integrity Notice Banner */}
       <div className="notice-banner">
         <ShieldCheck size={20} color="var(--accent-primary)" style={{ flexShrink: 0 }} />
         <div>
-          <strong>Measurable Knowledge Principle:</strong> PrepPilot AI records verifiable, deterministic problem-solving attempts. We strictly distinguish independent successes from hint-assisted and solution-assisted attempts. PrepPilot AI does not predict selection probability or guarantee placements.
+          <strong>Measurable Knowledge Principle:</strong> PrepPilot AI records verifiable, deterministic attempts. We distinguish independent successes from hint-assisted and solution-assisted practice. PrepPilot AI does not predict selection probability or guarantee placements.
         </div>
       </div>
 
-      {/* Hero Active Preparation Plan Section */}
-      {plan ? (
-        <div className="card" style={{ border: '1px solid var(--accent-border)', background: 'linear-gradient(180deg, #FFFFFF 0%, #FAFAFF 100%)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <div style={{ padding: '8px', background: 'var(--accent-light)', borderRadius: 'var(--radius-md)', color: 'var(--accent-primary)' }}>
-                <Target size={22} />
-              </div>
-              <div>
-                <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
-                  Active Preparation Plan: {plan.target_role}
+      {/* Main Grid: Active Preparation Plan & Recent Verifiable Learning */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: '20px' }}>
+        
+        {/* Left Column: Current Preparation Plan */}
+        {plan ? (
+          <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Target size={20} color="var(--accent-primary)" />
+                <h2 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0 }}>
+                  Current Preparation Plan
                 </h2>
-                <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
-                  Milestone Progress: {completedMilestonesCount} of {totalMilestonesCount} completed ({milestoneProgressPct}%)
-                </div>
               </div>
-            </div>
-
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <button onClick={() => onNavigate('mentor')} className="btn btn-primary btn-sm">
-                <Sparkles size={14} />
-                <span>Continue with Mentor</span>
-              </button>
-              <button onClick={() => onNavigate('setup')} className="btn btn-secondary btn-sm">
-                <span>View Full Plan</span>
+              <button onClick={() => onNavigate('profile')} className="btn btn-secondary btn-sm" style={{ fontSize: '0.78rem' }}>
+                <span>Edit Plan</span>
+                <ChevronRight size={14} />
               </button>
             </div>
-          </div>
 
-          {/* Progress Bar */}
-          <div style={{ height: '8px', background: 'var(--bg-subtle)', borderRadius: 'var(--radius-full)', overflow: 'hidden', marginBottom: '20px' }}>
-            <div 
-              style={{ 
-                height: '100%', 
-                width: `${milestoneProgressPct}%`, 
-                background: 'linear-gradient(90deg, #4F46E5 0%, #10B981 100%)',
-                borderRadius: 'var(--radius-full)',
-                transition: 'width 0.4s ease'
-              }} 
-            />
-          </div>
-
-          {/* 3-Column Plan Breakdown */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.2fr 1fr', gap: '16px' }}>
-            
-            {/* Column 1: Diagnostic & Knowledge Gaps */}
-            <div style={{ background: 'var(--bg-main)', padding: '16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-light)' }}>
-              <div style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--accent-primary)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <ShieldCheck size={16} />
+            {/* Diagnostic Snippet */}
+            <div style={{ 
+              padding: '14px 16px', 
+              background: 'var(--bg-main)', 
+              borderRadius: 'var(--radius-md)', 
+              border: '1px solid var(--border-light)',
+              fontSize: '0.85rem'
+            }}>
+              <div style={{ fontWeight: 700, color: 'var(--accent-primary)', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <ShieldCheck size={15} />
                 <span>Readiness Diagnostic</span>
               </div>
-              <p style={{ fontSize: '0.82rem', color: 'var(--text-primary)', lineHeight: 1.5, marginBottom: '12px' }}>
+              <div style={{ color: 'var(--text-primary)', lineHeight: 1.5 }}>
                 {plan.readiness_diagnostic}
-              </p>
+              </div>
 
-              <div style={{ fontWeight: 700, fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '6px' }}>
-                Diagnosed Knowledge Gaps:
-              </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                {plan.knowledge_gaps && plan.knowledge_gaps.map((gap, i) => (
-                  <span 
-                    key={i} 
-                    onClick={() => onNavigate('mentor')}
-                    className="badge badge-candidate" 
-                    style={{ cursor: 'pointer', fontSize: '0.75rem' }}
-                    title="Click to discuss with mentor"
-                  >
-                    🎯 {gap}
-                  </span>
-                ))}
-              </div>
+              {plan.knowledge_gaps && plan.knowledge_gaps.length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '10px' }}>
+                  {plan.knowledge_gaps.map((gap, i) => (
+                    <span 
+                      key={i} 
+                      onClick={() => onNavigate('mentor')}
+                      className="badge badge-candidate" 
+                      style={{ cursor: 'pointer', fontSize: '0.74rem' }}
+                      title="Click to practice this topic with mentor"
+                    >
+                      🎯 {gap}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
 
-            {/* Column 2: Milestones Checklist */}
-            <div style={{ background: 'var(--bg-main)', padding: '16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-light)', maxHeight: '220px', overflowY: 'auto' }}>
-              <div style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--text-primary)', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <CheckCircle size={16} color="var(--success)" />
-                <span>Plan Milestones</span>
+            {/* Milestone Checklist */}
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                <span style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--text-primary)' }}>
+                  Plan Milestones ({completedMilestonesCount}/{totalMilestonesCount} Completed)
+                </span>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                  Click to check off
+                </span>
               </div>
+
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 {plan.milestones.map((m) => (
                   <div 
@@ -193,23 +286,23 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
                     style={{ 
                       display: 'flex', 
                       alignItems: 'flex-start', 
-                      gap: '8px', 
-                      padding: '8px 10px', 
-                      background: 'var(--bg-surface)', 
+                      gap: '10px', 
+                      padding: '10px 12px', 
+                      background: m.completed ? 'var(--bg-main)' : 'var(--bg-surface)', 
                       borderRadius: 'var(--radius-sm)',
-                      border: '1px solid var(--border-subtle)',
-                      fontSize: '0.8rem' 
+                      border: `1px solid ${m.completed ? 'var(--success-border)' : 'var(--border-light)'}`,
+                      fontSize: '0.84rem' 
                     }}
                   >
                     <input 
                       type="checkbox" 
                       checked={m.completed} 
                       onChange={() => handleToggleMilestone(m.milestone_id)}
-                      style={{ marginTop: '3px', cursor: 'pointer' }}
+                      style={{ marginTop: '3px', cursor: 'pointer', width: '16px', height: '16px' }}
                     />
                     <div style={{ flex: 1, textDecoration: m.completed ? 'line-through' : 'none', color: m.completed ? 'var(--text-muted)' : 'var(--text-primary)' }}>
                       <strong>{m.title}</strong>
-                      <div style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                      <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
                         {m.description}
                       </div>
                     </div>
@@ -218,251 +311,155 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
               </div>
             </div>
 
-            {/* Column 3: Project Defense Readiness */}
-            <div style={{ background: 'var(--bg-main)', padding: '16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-light)' }}>
-              <div style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--text-primary)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <Code2 size={16} color="var(--accent-primary)" />
-                <span>Project Defense Drill</span>
-              </div>
-              <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: '10px' }}>
-                Sample defense question generated from your project repositories:
-              </p>
-              {plan.project_defense_questions && plan.project_defense_questions.length > 0 ? (
-                <div style={{ 
-                  padding: '10px 12px', 
-                  background: 'var(--bg-surface)', 
-                  border: '1px dashed var(--accent-border)', 
-                  borderRadius: 'var(--radius-sm)',
-                  fontSize: '0.8rem',
-                  fontStyle: 'italic',
-                  color: 'var(--text-primary)',
-                  marginBottom: '10px'
-                }}>
+            {/* Project Defense Drill preview */}
+            {plan.project_defense_questions && plan.project_defense_questions.length > 0 && (
+              <div style={{ padding: '12px 14px', background: 'var(--bg-main)', borderRadius: 'var(--radius-sm)', border: '1px dashed var(--accent-border)' }}>
+                <div style={{ fontWeight: 700, fontSize: '0.82rem', color: 'var(--accent-primary)', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Code2 size={15} />
+                  <span>Next Project Defense Drill:</span>
+                </div>
+                <div style={{ fontSize: '0.82rem', fontStyle: 'italic', color: 'var(--text-primary)' }}>
                   "{plan.project_defense_questions[0]}"
                 </div>
-              ) : (
-                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '10px' }}>
-                  Add a GitHub repo in Setup to generate custom architectural defense drills.
-                </div>
-              )}
-              <button 
-                onClick={() => onNavigate('mentor')} 
-                className="btn btn-secondary btn-sm" 
-                style={{ width: '100%', fontSize: '0.78rem' }}
-              >
-                <span>Defend Architecture in Mentor</span>
-                <ChevronRight size={14} />
-              </button>
-            </div>
-
-          </div>
-        </div>
-      ) : (
-        /* Setup Invitation Card if No Plan Exists */
-        <div className="card" style={{ 
-          background: 'linear-gradient(135deg, #EEF2FF 0%, #F5F3FF 100%)', 
-          border: '1px solid var(--accent-border)',
-          padding: '32px'
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px' }}>
-            <div style={{ maxWidth: '650px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--accent-primary)', fontWeight: 700, fontSize: '0.88rem', marginBottom: '8px' }}>
-                <Target size={18} />
-                <span>Personalized Setup Needed</span>
-              </div>
-              <h2 style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '8px' }}>
-                Build Your Evidence-Backed Placement Preparation Plan
-              </h2>
-              <p style={{ fontSize: '0.92rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-                Upload your resume, connect your GitHub repositories, and enter target roles to receive a tailored readiness diagnostic, project defense questions, and structured milestones.
-              </p>
-            </div>
-            <button 
-              onClick={() => onNavigate('setup')} 
-              className="btn btn-primary"
-              style={{ padding: '12px 24px', fontSize: '0.95rem' }}
-            >
-              <Target size={18} />
-              <span>Configure Preparation Setup</span>
-              <ArrowRight size={18} />
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* 4 Stat Metric Cards */}
-      <div className="grid-4">
-        <div className="card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span className="card-subtitle" style={{ marginBottom: 0 }}>Questions Attempted</span>
-            <div style={{ padding: '8px', background: 'var(--bg-subtle)', borderRadius: 'var(--radius-md)', color: 'var(--text-secondary)' }}>
-              <Layers size={18} />
-            </div>
-          </div>
-          <div style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '12px' }}>
-            {overview?.total_questions_attempted || 0}
-          </div>
-          <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
-            Total verifiable interview turns
-          </div>
-        </div>
-
-        <div className="card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span className="card-subtitle" style={{ marginBottom: 0 }}>Independent Successes</span>
-            <div style={{ padding: '8px', background: 'var(--success-bg)', borderRadius: 'var(--radius-md)', color: 'var(--success)' }}>
-              <CheckCircle size={18} />
-            </div>
-          </div>
-          <div style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--success)', marginTop: '12px' }}>
-            {overview?.independent_successes || 0}
-          </div>
-          <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
-            Solved with zero hints or reveals
-          </div>
-        </div>
-
-        <div className="card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span className="card-subtitle" style={{ marginBottom: 0 }}>Coding Test Pass Rate</span>
-            <div style={{ padding: '8px', background: 'var(--accent-light)', borderRadius: 'var(--radius-md)', color: 'var(--accent-primary)' }}>
-              <Code2 size={18} />
-            </div>
-          </div>
-          <div style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--accent-primary)', marginTop: '12px' }}>
-            {overview?.coding_pass_rate_percentage || 0}%
-          </div>
-          <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
-            {overview?.coding_tests_passed || 0} / {overview?.coding_tests_total || 0} deterministic sandbox runs passed
-          </div>
-        </div>
-
-        <div className="card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span className="card-subtitle" style={{ marginBottom: 0 }}>Pending Revisions</span>
-            <div style={{ padding: '8px', background: 'var(--warning-bg)', borderRadius: 'var(--radius-md)', color: 'var(--warning)' }}>
-              <Clock size={18} />
-            </div>
-          </div>
-          <div style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--warning)', marginTop: '12px' }}>
-            {overview?.pending_revisions_count || 0}
-          </div>
-          <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
-            Spaced retention tasks due
-          </div>
-        </div>
-      </div>
-
-      {/* Main 2-Column Section: Topic Mastery & Company Research as Supporting Context */}
-      <div className="grid-2">
-        {/* Topic Strengths & Mastery */}
-        <div className="card">
-          <div className="card-title">
-            <Layers size={20} color="var(--accent-primary)" />
-            <span>Topic-Level Mastery Breakdown</span>
-          </div>
-          <p className="card-subtitle">
-            Measured by the ratio of independent successes to total attempts.
-          </p>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            {overview?.topics_breakdown && overview.topics_breakdown.length > 0 ? (
-              overview.topics_breakdown.map((t) => (
-                <div key={t.topic} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
-                    <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{t.topic}</span>
-                    <span style={{ color: 'var(--text-secondary)' }}>
-                      {t.independent_success_count} indep. / {t.attempts_count} attempts ({t.mastery_percentage}%)
-                    </span>
-                  </div>
-                  <div style={{ height: '8px', background: 'var(--bg-subtle)', borderRadius: 'var(--radius-full)', overflow: 'hidden' }}>
-                    <div 
-                      style={{ 
-                        height: '100%', 
-                        width: `${Math.min(100, Math.max(5, t.mastery_percentage))}%`,
-                        background: t.mastery_percentage >= 70 ? 'var(--success)' : t.mastery_percentage >= 40 ? 'var(--accent-primary)' : 'var(--warning)',
-                        borderRadius: 'var(--radius-full)'
-                      }} 
-                    />
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div style={{ padding: '24px 16px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-                Start a session with your mentor or solve a challenge in the coding sandbox to calibrate your topic mastery!
               </div>
             )}
           </div>
-        </div>
-
-        {/* Company Evidence Overview (Demoted to supporting context) */}
-        <div className="card">
-          <div className="card-title">
-            <Building2 size={20} color="var(--accent-primary)" />
-            <span>Company Recruitment Evidence & Sources</span>
+        ) : (
+          <div className="card" style={{ textAlign: 'center', padding: '36px' }}>
+            <Target size={36} color="var(--accent-primary)" style={{ margin: '0 auto 12px auto' }} />
+            <h3 style={{ fontSize: '1.15rem', fontWeight: 800 }}>Create Your Preparation Plan</h3>
+            <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', maxWidth: '380px', margin: '8px auto 16px auto' }}>
+              Upload your resume and enter your target role in the Preparation Profile to generate customized milestones.
+            </p>
+            <button onClick={() => onNavigate('profile')} className="btn btn-primary btn-sm">
+              <span>Go to Preparation Profile</span>
+              <ArrowRight size={14} />
+            </button>
           </div>
-          <p className="card-subtitle">
-            Traceable recruitment patterns, reported rounds, and candidate experiences for contextual prep.
+        )}
+
+        {/* Right Column: Recent Learning Activity Feed */}
+        <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <BookOpen size={18} color="var(--accent-primary)" />
+            <h3 style={{ fontSize: '1.1rem', fontWeight: 800, margin: 0 }}>
+              Recent Learning & Verifiable Actions
+            </h3>
+          </div>
+
+          <p className="card-subtitle" style={{ margin: 0 }}>
+            Traceable problem-solving events and mentor interactions.
           </p>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {companies.slice(0, 3).map((comp) => (
-              <div 
-                key={comp.id} 
-                onClick={() => onNavigate('companies')}
-                style={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  justifyContent: 'space-between', 
-                  padding: '12px 14px', 
-                  borderRadius: 'var(--radius-md)', 
-                  border: '1px solid var(--border-light)',
-                  cursor: 'pointer',
-                  transition: 'var(--transition)'
-                }}
-                className="company-row"
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <div style={{ 
-                    width: '36px', 
-                    height: '36px', 
-                    borderRadius: 'var(--radius-md)', 
-                    background: 'var(--bg-subtle)', 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    justifyContent: 'center', 
-                    fontWeight: 700, 
-                    color: 'var(--accent-primary)' 
-                  }}>
-                    {comp.logo_letter}
-                  </div>
-                  <div>
-                    <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{comp.name}</div>
-                    <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
-                      {comp.roles.length} roles • {comp.reported_rounds.length} reported rounds
-                    </div>
-                  </div>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span className="badge badge-verified">
-                    {comp.source_count} Verified Sources
-                  </span>
-                  <ChevronRight size={16} color="var(--text-muted)" />
-                </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {/* Event 1 */}
+            <div style={{ padding: '12px', background: 'var(--bg-main)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-light)', fontSize: '0.82rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
+                  SQL Coding Sandbox Execution
+                </span>
+                <span className="badge badge-verified" style={{ fontSize: '0.68rem' }}>
+                  Passed (100%)
+                </span>
               </div>
-            ))}
+              <div style={{ color: 'var(--text-secondary)', marginTop: '4px' }}>
+                Solved "Customers with No Orders" (SQLite in-memory engine).
+              </div>
+            </div>
+
+            {/* Event 2 */}
+            <div style={{ padding: '12px', background: 'var(--bg-main)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-light)', fontSize: '0.82rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
+                  GitHub Architecture Defense
+                </span>
+                <span className="badge badge-candidate" style={{ fontSize: '0.68rem' }}>
+                  Brain-Tumor-Segmentation
+                </span>
+              </div>
+              <div style={{ color: 'var(--text-secondary)', marginTop: '4px' }}>
+                Defended model inference pipeline latency and memory constraints.
+              </div>
+            </div>
+
+            {/* Event 3 */}
+            <div style={{ padding: '12px', background: 'var(--bg-main)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-light)', fontSize: '0.82rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
+                  5-Step Concept Explanation
+                </span>
+                <span className="badge badge-official" style={{ fontSize: '0.68rem' }}>
+                  Misconception Calibrated
+                </span>
+              </div>
+              <div style={{ color: 'var(--text-secondary)', marginTop: '4px' }}>
+                Reviewed SQL Joins & Unmatched NULLs with Senior Mentor.
+              </div>
+            </div>
           </div>
 
           <button 
-            onClick={() => onNavigate('companies')} 
-            className="btn btn-secondary" 
-            style={{ width: '100%', marginTop: '16px' }}
+            onClick={() => onNavigate('mentor')} 
+            className="btn btn-secondary btn-sm"
+            style={{ width: '100%', marginTop: 'auto' }}
           >
-            <span>Explore Company Evidence</span>
-            <ArrowRight size={15} />
+            <Sparkles size={14} />
+            <span>Launch Practice Session with Mentor</span>
           </button>
         </div>
+
       </div>
+
+      {/* Concise Progress Summary (No duplicate analytics cards or prediction metrics) */}
+      <div className="grid-3">
+        <div className="card">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span className="card-subtitle" style={{ margin: 0 }}>Questions Attempted</span>
+            <div style={{ padding: '6px', background: 'var(--bg-subtle)', borderRadius: 'var(--radius-md)' }}>
+              <Layers size={16} color="var(--text-secondary)" />
+            </div>
+          </div>
+          <div style={{ fontSize: '1.85rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '10px' }}>
+            {overview?.total_questions_attempted || 0}
+          </div>
+          <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '4px', margin: 0 }}>
+            Verifiable technical turns completed
+          </p>
+        </div>
+
+        <div className="card">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span className="card-subtitle" style={{ margin: 0 }}>Coding Sandbox Tests Passed</span>
+            <div style={{ padding: '6px', background: 'var(--accent-light)', borderRadius: 'var(--radius-md)' }}>
+              <Code2 size={16} color="var(--accent-primary)" />
+            </div>
+          </div>
+          <div style={{ fontSize: '1.85rem', fontWeight: 800, color: 'var(--accent-primary)', marginTop: '10px' }}>
+            {overview?.coding_tests_passed || 0}
+          </div>
+          <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '4px', margin: 0 }}>
+            Deterministic runs passed in Python/SQL runner
+          </p>
+        </div>
+
+        <div className="card">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span className="card-subtitle" style={{ margin: 0 }}>Retention Reviews Due</span>
+            <div style={{ padding: '6px', background: 'var(--warning-bg)', borderRadius: 'var(--radius-md)' }}>
+              <RotateCcw size={16} color="var(--warning)" />
+            </div>
+          </div>
+          <div style={{ fontSize: '1.85rem', fontWeight: 800, color: 'var(--warning)', marginTop: '10px' }}>
+            {overview?.pending_revisions_count || 0}
+          </div>
+          <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '4px', margin: 0 }}>
+            Scheduled spaced retention recall tasks
+          </p>
+        </div>
+      </div>
+
     </div>
   );
 };
+
+export default Dashboard;

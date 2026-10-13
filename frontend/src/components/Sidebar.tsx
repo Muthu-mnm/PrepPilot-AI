@@ -29,16 +29,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onLogout,
   onOpenAuth,
 }) => {
+  // Map legacy/sub-route tab IDs to the 4 primary destinations
+  const activeTabId = 
+    currentTab === 'dashboard' ? 'home' :
+    currentTab === 'setup' ? 'profile' :
+    currentTab === 'revisions' ? 'progress' :
+    ['coding', 'interview', 'mastery'].includes(currentTab) ? 'mentor' :
+    currentTab;
+
   const navItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: Compass },
+    { id: 'home', label: 'Home', icon: Compass },
     { id: 'mentor', label: 'My Mentor', icon: Sparkles },
-    { id: 'setup', label: 'Preparation Setup', icon: Target },
-    { id: 'coding', label: 'Coding Workspace', icon: Code2 },
-    { id: 'interview', label: 'Mock Interview Room', icon: MessageSquare },
-    { id: 'mastery', label: 'Mistake to Mastery', icon: BookOpen },
-    { id: 'progress', label: 'Learning Analytics', icon: BarChart3 },
-    { id: 'revisions', label: 'Revision Queue', icon: CheckCircle2 },
-    { id: 'companies', label: 'Company Research', icon: Building2 },
+    { id: 'progress', label: 'My Progress', icon: BarChart3 },
+    { id: 'profile', label: 'Preparation Profile', icon: Target },
   ];
 
   return (
@@ -55,7 +58,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <nav className="sidebar-nav">
         {navItems.map((item) => {
           const Icon = item.icon;
-          const isActive = currentTab === item.id;
+          const isActive = activeTabId === item.id;
           return (
             <button
               key={item.id}

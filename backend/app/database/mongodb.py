@@ -156,6 +156,30 @@ class LocalDocumentCollection:
         async with self._lock:
             return sum(1 for doc in self._cache if self._matches(doc, query))
 
+    async def delete_one(self, query: Dict[str, Any]):
+        async with self._lock:
+            for i, doc in enumerate(self._cache):
+                if self._matches(doc, query):
+                    del self._cache[i]
+                    self._save()
+                    class DeleteResult:
+                        deleted_count = 1
+                    return DeleteResult()
+            class DeleteResultZero:
+                deleted_count = 0
+            return DeleteResultZero()
+
+    async def delete_many(self, query: Dict[str, Any]):
+        async with self._lock:
+            before_len = len(self._cache)
+            self._cache = [doc for doc in self._cache if not self._matches(doc, query)]
+            del_count = before_len - len(self._cache)
+            if del_count > 0:
+                self._save()
+            class DeleteResult:
+                deleted_count = del_count
+            return DeleteResult()
+
 class LocalDatabase:
     def __init__(self, data_dir: str):
         self.data_dir = data_dir

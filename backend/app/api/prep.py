@@ -70,10 +70,12 @@ async def update_plan(payload: PlanUpdateRequest, current_user: dict = Depends(g
         raise HTTPException(status_code=404, detail="No active preparation plan found.")
     
     update_data = {
-        "milestones": [m.dict() for m in payload.milestones]
+        "milestones": [m.model_dump() if hasattr(m, "model_dump") else m.dict() for m in payload.milestones]
     }
     if payload.knowledge_gaps is not None:
         update_data["knowledge_gaps"] = payload.knowledge_gaps
+    if payload.readiness_diagnostic is not None:
+        update_data["readiness_diagnostic"] = payload.readiness_diagnostic
 
     await db["prep_plans"].update_one({"_id": str(plan["_id"])}, {"$set": update_data})
     return await PrepService.get_current_plan(user_id)
