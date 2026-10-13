@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     # AI Engine (Ollama via Kaggle ngrok tunnel or local)
     OLLAMA_HOST: str = os.getenv("OLLAMA_HOST", "https://earmuff-litigator-definite.ngrok-free.dev")
     OLLAMA_MODEL: str = os.getenv("OLLAMA_MODEL", "qwen3.5:27b")
-    OLLAMA_TIMEOUT_SECONDS: float = 45.0
+    OLLAMA_TIMEOUT_SECONDS: float = 120.0
     
     # Security & Auth
     JWT_SECRET_KEY: str = os.getenv("JWT_SECRET_KEY", "preppilot_super_secret_jwt_key_2026_dev_secure")

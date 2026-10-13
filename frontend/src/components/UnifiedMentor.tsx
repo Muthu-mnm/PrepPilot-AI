@@ -947,28 +947,6 @@ Please tailor my interview simulation to reflect these expectations.`;
                       </div>
 
                       <div className="turn-mentor-content">
-                        {/* Diagnosed Misconception Callout Badge */}
-                        {msg.misconception_detected && (
-                          <div className="callout-misconception">
-                            <AlertCircle size={14} style={{ flexShrink: 0, marginTop: '2px' }} />
-                            <div>
-                              <strong>Diagnosed Misconception: </strong>
-                              <span>{msg.misconception_detected}</span>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Acknowledged Intuition Callout Badge */}
-                        {msg.affirmation && (
-                          <div className="callout-affirmation">
-                            <CheckCircle2 size={14} style={{ flexShrink: 0, marginTop: '2px' }} />
-                            <div>
-                              <strong>Acknowledged Reasoning: </strong>
-                              <span>{msg.affirmation}</span>
-                            </div>
-                          </div>
-                        )}
-
                         {renderMessageContent(msg.content)}
                       </div>
 

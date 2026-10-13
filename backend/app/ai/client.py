@@ -14,14 +14,17 @@ class OllamaAIClient:
     def __init__(self):
         self.host = settings.OLLAMA_HOST.rstrip("/")
         self.model = settings.OLLAMA_MODEL
-        self.timeout = settings.OLLAMA_TIMEOUT_SECONDS
         self.headers = {
             "Content-Type": "application/json",
             "ngrok-skip-browser-warning": "true",
             "User-Agent": "PrepPilot-AI-Backend/1.0"
         }
 
-    async def generate(self, prompt: str, system: Optional[str] = None, format_json: bool = False) -> str:
+    @property
+    def timeout(self) -> float:
+        return getattr(settings, "OLLAMA_TIMEOUT_SECONDS", 120.0)
+
+    async def generate(self, prompt: str, system: Optional[str] = None, format_json: bool = False, options: Optional[Dict[str, Any]] = None) -> str:
         url = f"{self.host}/api/generate"
         payload = {
             "model": self.model,
@@ -32,6 +35,8 @@ class OllamaAIClient:
             payload["system"] = system
         if format_json:
             payload["format"] = "json"
+        if options:
+            payload["options"] = options
 
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
@@ -43,10 +48,10 @@ class OllamaAIClient:
                     logger.error(f"Ollama returned HTTP {response.status_code}: {response.text}")
                     return self._fallback_response(prompt, format_json)
         except Exception as e:
-            logger.warning(f"Error connecting to Ollama at {self.host} ({e}). Triggering structured fallback.")
+            logger.warning(f"Error connecting to Ollama at {self.host} ({e}). Triggering fallback.")
             return self._fallback_response(prompt, format_json)
 
-    async def chat(self, messages: List[Dict[str, str]], format_json: bool = False) -> str:
+    async def chat(self, messages: List[Dict[str, str]], format_json: bool = False, options: Optional[Dict[str, Any]] = None) -> str:
         url = f"{self.host}/api/chat"
         payload = {
             "model": self.model,
@@ -55,6 +60,8 @@ class OllamaAIClient:
         }
         if format_json:
             payload["format"] = "json"
+        if options:
+            payload["options"] = options
 
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
@@ -67,7 +74,7 @@ class OllamaAIClient:
                     logger.error(f"Ollama chat error HTTP {response.status_code}: {response.text}")
                     return self._fallback_response(messages[-1].get("content", ""), format_json)
         except Exception as e:
-            logger.warning(f"Error in Ollama chat connection ({e}). Triggering structured fallback.")
+            logger.warning(f"Error in Ollama chat connection ({e}). Triggering fallback.")
             return self._fallback_response(messages[-1].get("content", ""), format_json)
 
     def _fallback_response(self, context: str, format_json: bool) -> str:
@@ -82,6 +89,6 @@ class OllamaAIClient:
                 "assistance_level": "independent",
                 "suggested_followup": "Can you explain how this approach performs when inputs are duplicated or empty?"
             })
-        return "I noticed your core logic is on the right track! Let's think about how this would behave when boundary conditions change."
+        return "I'm analyzing your approach. Notice how the core logic handles the typical case, but consider what happens when boundary conditions or unexpected inputs occur. What edge cases come to mind?"
 
 ai_client = OllamaAIClient()

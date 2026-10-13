@@ -135,6 +135,90 @@ class UnifiedMentorService:
         return mapping.get(raw_mode, "general_chat")
 
     @staticmethod
+    def _build_system_prompt(active_mode: str, context_data: Dict[str, Any]) -> str:
+        role = context_data.get("target_role") or "Software Development Engineer"
+        company = f" at {context_data.get('target_company')}" if context_data.get('target_company') else ""
+        knowledge_gaps = context_data.get("knowledge_gaps", [])
+        gaps_str = f" Known areas for reinforcement: {', '.join(knowledge_gaps)}." if knowledge_gaps else ""
+
+        base_rules = f"""You are PrepPilot AI's Senior Technical Placement Mentor.
+You are an experienced, patient, and technically rigorous software engineer coaching candidates for technical roles ({role}{company}).{gaps_str}
+
+CORE PRINCIPLES:
+1. Tone: Conversational, thoughtful, and technically precise. Speak naturally as a senior engineering mentor.
+2. NO RIGID LABELS: Never use boilerplate section headings or template labels. Specifically, DO NOT use:
+   - "Acknowledged Reasoning"
+   - "Directional Nudge"
+   - "Key Insight"
+   - "Mentoring Strategy"
+   - "AI Analysis"
+   - "Thinking Pipeline"
+   - "5-Step Concept Explanation"
+3. NO EMPTY PRAISE: Avoid reflexive, generic praise like "Amazing!", "Brilliant!", or "Excellent thinking!". Acknowledge correct technical intuition naturally within the explanation.
+4. ADAPTIVE DEPTH: Keep simple answers direct and concise; provide deeper explanations, tradeoffs, and code only when the topic demands depth.
+5. NO INTERNAL REASONING DUMP: Never output internal thoughts, chain-of-thought scratchpads, or system meta-commentary. Give the candidate clear, high-signal technical explanations and actionable guidance.
+6. CONTINUITY: Always read and ground your response in the ongoing conversation history. Never restart the conversation or ask generic questions when the student asked about a specific topic."""
+
+        if active_mode == "general_chat":
+            return base_rules + """
+
+MODE GUIDANCE - GENERAL CHAT:
+- Answer the student's question directly, accurately, and naturally.
+- Use previous turns to maintain context and build upon earlier answers.
+- Ask a follow-up only when it clarifies something important or genuinely advances the discussion.
+- Do not force ordinary conversational questions into formal interview evaluations."""
+
+        elif active_mode == "interview":
+            return base_rules + f"""
+
+MODE GUIDANCE - TECHNICAL INTERVIEW:
+- Conduct a realistic technical interview for a {role}{company}.
+- Ask exactly ONE interview question or probing follow-up at a time.
+- Let the candidate complete their answer. Evaluate their actual reasoning, depth, edge cases, and assumptions.
+- If their answer is incomplete or vague, ask a targeted follow-up to test deeper understanding rather than immediately displaying the ideal model answer.
+- If their answer is solid, acknowledge the strong points and probe a related edge case, system tradeoff, or advance to the next question.
+- Do not dump the question, rubric, and solution together in one turn."""
+
+        elif active_mode == "coding":
+            return base_rules + """
+
+MODE GUIDANCE - CODING MENTOR:
+- Focus on independent problem solving. Deeply understand the problem and the candidate's current approach.
+- If the candidate asks for a hint, provide ONE problem-specific progressive clue or invariant. DO NOT reveal the complete solution or full code right away.
+- When reviewing candidate code or logic, pinpoint the exact failing edge case, off-by-one bug, or Big-O complexity tradeoff.
+- Distinguish conceptual bugs from syntax/runtime errors.
+- Provide full code only when explicitly requested or after multiple guided iterations."""
+
+        elif active_mode == "learn":
+            return base_rules + """
+
+MODE GUIDANCE - CONCEPT LEARNING:
+- Teach concepts deeply enough for the student to explain and apply them in interview settings.
+- Use clear intuition, practical software engineering analogies, and side-by-side right vs wrong comparisons.
+- Ask a single focused comprehension check when helpful.
+- If the candidate reveals a misconception, diagnose the exact flaw gently and re-explain using a different analogy or worked example."""
+
+        elif active_mode == "project_defense":
+            return base_rules + """
+
+MODE GUIDANCE - PROJECT DEFENSE:
+- Challenge the candidate to defend their actual projects, architectures, and engineering decisions.
+- Probe trade-offs: why this tech stack, database schemas, concurrency/locking, scaling bottlenecks, fault tolerance, and candidate's specific contributions.
+- Ask ONE meaningful, probing question at a time.
+- Never invent files, repositories, or metrics that the candidate did not mention. If details are missing, ask them to describe the implementation."""
+
+        elif active_mode == "retest":
+            return base_rules + """
+
+MODE GUIDANCE - KNOWLEDGE RETEST:
+- Verify retention of previously weak or practiced concepts.
+- Present a fresh, realistic problem testing the same underlying concept without repeating the past question word-for-word.
+- Wait for the candidate's independent answer before providing hints.
+- Objectively evaluate whether they solved it independently."""
+
+        return base_rules
+
+    @staticmethod
     async def handle_user_message(user_id: str, payload: MentorChatMessageRequest) -> MentorChatMessageResponse:
         db = get_database()
         messages = await UnifiedMentorService.get_or_create_conversation(user_id)
@@ -154,80 +238,50 @@ class UnifiedMentorService:
             "target_company": plan.get("target_company") if plan else None,
             "target_deadline": plan.get("target_deadline") if plan else None,
             "knowledge_gaps": plan.get("knowledge_gaps", []) if plan else [],
-            "project_defense_questions": plan.get("project_defense_questions", []) if plan else [],
             "recent_misconceptions": recent_misconceptions,
             "recent_submission_statuses": [f"{s.get('language')}: {s.get('status')}" for s in recent_submissions],
             "mode": active_mode
         }
 
-        # Build prompt tailored to the 6 contextual modes
-        system_prompt = """You are PrepPilot AI's Senior Technical Placement Mentor.
-You are a warm, rigorous, and supportive senior engineer guiding the student toward placement mastery.
+        # Build system prompt tailored to active mode and persistent context
+        system_prompt = UnifiedMentorService._build_system_prompt(active_mode, context_data)
 
-Core Pedagogical Principles:
-1. Always ground your questions and advice in the student's target role, company, ingested projects, and past misconceptions.
-2. When the student makes an error or asks for help:
-   - Acknowledge any correct intuition or partial progress first.
-   - Diagnose the specific misconception concisely without condescension.
-   - Explain the concept using a concrete everyday analogy and a concrete code example.
-   - Provide a progressive hint (nudge -> structural -> walkthrough) rather than immediately revealing full code.
-   - Formulate an independent follow-up check question.
-3. Guidelines for Hints & Context Continuity:
-   - If the student asks for a hint (e.g. nudge, directional clue, structure, walkthrough) or clarification on a previously discussed question or code snippet, YOU MUST GROUND YOUR RESPONSE IN THAT EXACT QUESTION FROM RECENT CONVERSATION HISTORY. Never ask what aspect they want to verify when they already asked for a hint on an active problem!
-   - In Nudge mode: Give a subtle directional clue or point out a specific edge-case/invariant without giving away the algorithm or code.
-   - In Structure mode: Break down the problem into 2-3 logical steps or state invariants.
-   - In Walkthrough mode: Explain the algorithm or concept step-by-step with clear reasoning and code snippets.
-4. Behavior by Active Mode:
-   - 'general_chat': Conversational advisor. Welcome the student, answer general career/placement queries, guide conversational onboarding (resume, company specs, GitHub, goals), and help construct or refine their preparation plan.
-   - 'interview': Technical & behavioral mock interview. Ask ONE focused question at a time. Evaluate student answers against rubric depth.
-   - 'coding': Challenge analysis and sandbox guidance. Diagnose failed test cases, analyze Big-O time and space complexity, and offer targeted progressive hints.
-   - 'learn': Deliver an intuitive 5-step concept explanation (Diagnosis -> Intuition Analogy -> Right vs Wrong Comparison -> Concrete Code Example -> Practice Retest).
-   - 'project_defense': Drill into their actual GitHub project architecture, module boundaries, race conditions, database choices, and scaling tradeoffs. Never invent files or repositories.
-   - 'retest': Challenge the student with a fresh, independent question testing a previously misunderstood concept to verify genuine retention.
-5. Formatting & Clean Presentation:
-   - NEVER use decorative emojis (such as 💡, 🧩, 🎓, 🎯, 🚀, 🤖, etc.) in headings, titles, bullet points, or anywhere in your text. They look like generic AI templates.
-   - Use clean, professional Markdown with crisp technical headings (e.g. '### Directional Nudge: Topic' instead of '### 💡 Directional Nudge: Topic').
+        # Assemble multi-turn conversation messages for Ollama /api/chat
+        chat_messages: List[Dict[str, str]] = [
+            {"role": "system", "content": system_prompt}
+        ]
 
-Output Format: Strictly valid JSON with schema:
-{
-  "content": "detailed markdown response with clean formatting, bullet points, and code blocks where helpful",
-  "misconception_detected": "string or null",
-  "affirmation": "what the student did right, or null",
-  "action_type": "offer_code" | "schedule_revision" | "retest_question" | null,
-  "suggested_actions": ["3 short suggested reply options for the student"]
-}
-"""
+        # Append previous conversation turns (up to last 10 turns for context continuity)
+        for msg in messages[-10:]:
+            role_type = msg.get("role", "")
+            content_str = msg.get("content", "").strip()
+            if not content_str:
+                continue
+            if role_type in ["candidate", "user"]:
+                chat_messages.append({"role": "user", "content": content_str})
+            elif role_type == "mentor":
+                chat_messages.append({"role": "assistant", "content": content_str})
 
-        # Format recent conversation history (last 8 turns)
-        recent_history_formatted = []
-        for msg in messages[-8:]:
-            role_label = "Student" if msg.get("role") in ["candidate", "user"] else "Mentor"
-            mode_lbl = msg.get("mode", "general_chat")
-            recent_history_formatted.append(f"{role_label} [{mode_lbl}]: {msg.get('content')}")
-        recent_history_text = "\n\n".join(recent_history_formatted) if recent_history_formatted else "No previous messages in session."
-
-        user_turn_prompt = f"""
-STUDENT PROFILE & PERSISTENT CONTEXT:
-{json.dumps(context_data, indent=2)}
-
-RECENT CONVERSATION HISTORY (Previous Turns):
-{recent_history_text}
-
-ACTIVE MODE: {active_mode}
-FOCUS TOPIC: {payload.context_topic or 'General Technical'}
-LATEST USER MESSAGE:
-{payload.message}
-"""
+        # Append the new user turn
+        current_turn_text = payload.message.strip()
         if payload.code_snippet:
-            user_turn_prompt += f"\nCODE SNIPPET PROVIDED:\n```\n{payload.code_snippet}\n```"
+            current_turn_text += f"\n\n```\n{payload.code_snippet}\n```"
+        if payload.context_topic and not any(payload.context_topic.lower() in current_turn_text.lower() for _ in [1]):
+            current_turn_text = f"[{payload.context_topic}] {current_turn_text}"
 
-        raw_resp = await ai_client.generate(prompt=user_turn_prompt, system=system_prompt, format_json=True)
+        chat_messages.append({"role": "user", "content": current_turn_text})
+
+        # Generate response using Ollama chat endpoint
         try:
-            resp_json = json.loads(raw_resp)
-            if not isinstance(resp_json, dict) or "content" not in resp_json or not resp_json.get("content"):
-                raise ValueError("Incomplete mentor response schema")
-        except Exception:
-            resp_json = UnifiedMentorService._build_contextual_fallback(payload, context_data, active_mode)
+            mentor_content = await ai_client.chat(messages=chat_messages, format_json=False)
+            if not mentor_content or len(mentor_content) < 10:
+                raise ValueError("Empty response received from AI model")
+        except Exception as e:
+            logger.warning(f"Ollama chat error ({e}), utilizing contextual mentor fallback.")
+            mentor_content = UnifiedMentorService._build_contextual_fallback(payload, context_data, active_mode)
+
+        # Determine context-aware suggested actions ONLY when genuinely useful
+        suggested_actions = UnifiedMentorService._determine_suggested_actions(active_mode, payload.message, mentor_content)
 
         # Save user message to history
         user_msg = {
@@ -239,130 +293,126 @@ LATEST USER MESSAGE:
         }
         messages.append(user_msg)
 
-        # Save mentor response
+        # Save mentor response to history
         mentor_msg = {
             "id": str(ObjectId()),
             "role": "mentor",
-            "content": resp_json.get("content", ""),
+            "content": mentor_content,
             "mode": active_mode,
-            "misconception_detected": resp_json.get("misconception_detected"),
-            "affirmation": resp_json.get("affirmation"),
-            "action_type": resp_json.get("action_type"),
-            "suggested_actions": resp_json.get("suggested_actions", []),
+            "action_type": "offer_code" if active_mode == "coding" and "```" in mentor_content else None,
+            "suggested_actions": suggested_actions,
             "created_at": datetime.utcnow().isoformat()
         }
         messages.append(mentor_msg)
 
-        # Persist to database
+        # Persist session to MongoDB
         await db["mentor_sessions"].update_one(
             {"user_id": user_id},
             {"$set": {"messages": messages, "updated_at": datetime.utcnow().isoformat()}}
         )
-
-        # If misconception was detected, schedule a revision task
-        if resp_json.get("misconception_detected"):
-            await db["revision_tasks"].insert_one({
-                "user_id": user_id,
-                "topic": payload.context_topic or "Mentor Topic Review",
-                "question_title": "Mentor Review Follow-up",
-                "misconception_addressed": resp_json.get("misconception_detected"),
-                "due_date": datetime.utcnow().isoformat(),
-                "status": "pending"
-            })
 
         return MentorChatMessageResponse(
             id=mentor_msg["id"],
             role="mentor",
             content=mentor_msg["content"],
             mode=active_mode,
-            misconception_detected=mentor_msg["misconception_detected"],
-            affirmation=mentor_msg["affirmation"],
-            action_type=mentor_msg["action_type"],
-            suggested_actions=mentor_msg["suggested_actions"],
+            misconception_detected=None,
+            affirmation=None,
+            action_type=mentor_msg.get("action_type"),
+            suggested_actions=mentor_msg.get("suggested_actions", []),
             created_at=mentor_msg["created_at"]
         )
 
     @staticmethod
-    def _build_contextual_fallback(payload: MentorChatMessageRequest, context: Dict[str, Any], active_mode: str) -> Dict[str, Any]:
-        """Provides rich, high-signal pedagogical fallback when local LLM is offline or timing out."""
-        role = context.get("target_role") or "Software Development Engineer"
-        topic = payload.context_topic or (context.get("knowledge_gaps", ["Core Fundamentals"])[0] if context.get("knowledge_gaps") else "General Systems")
-        msg_lower = (payload.message or "").lower()
+    def _determine_suggested_actions(active_mode: str, user_msg: str, mentor_reply: str) -> List[str]:
+        """Provides a small, context-aware list of follow-up options only when genuinely useful."""
+        msg_lower = user_msg.lower()
 
-        # Check for progressive hint requests
-        if "nudge" in msg_lower or "directional" in msg_lower:
-            return {
-                "content": f"### Directional Nudge: **{topic}**\n\n**Key Insight:** Look closely at the data flow and boundary conditions.\n\n• Can you avoid a nested search or repeated work by keeping an auxiliary lookup structure (like a hash map, set, or two pointers)?\n• What happens if the input has duplicate values or an empty collection?\n\nTake a minute to trace this direction before writing code.",
-                "misconception_detected": None,
-                "affirmation": "Asking for a subtle nudge helps you preserve independent problem-solving.",
-                "action_type": None,
-                "suggested_actions": ["I will try using an auxiliary hash map", "Give me a structural step hint", "Let's check edge cases"]
-            }
+        if active_mode == "coding":
+            if "hint" in msg_lower or "nudge" in msg_lower:
+                return ["Give me a smaller hint", "I'll try writing the code", "Check edge cases"]
+            return ["Give me a hint", "Analyze time & space complexity"]
 
-        if "structure" in msg_lower or "structural" in msg_lower:
-            return {
-                "content": f"### Structural Breakdown: **{topic}**\n\nHere is how to structure your approach in 3 clean phases:\n\n1. **Edge Conditions:** Validate empty inputs or base cases early.\n2. **State & Invariants:** Define what each pointer or accumulator maintains during each iteration.\n3. **Post-Processing & Output:** Assemble the result or return early upon meeting the termination condition.\n\nWhich of these 3 steps would you like to flesh out first?",
-                "misconception_detected": None,
-                "affirmation": "Breaking complex problems into structural phases is exactly what interviewers look for.",
-                "action_type": None,
-                "suggested_actions": ["I'll implement the state tracking", "Show me a concrete code example", "Let's test this in the sandbox"]
-            }
+        if active_mode == "interview":
+            return ["Ask a harder follow-up", "How would a senior engineer answer?"]
 
-        if "walkthrough" in msg_lower or "solution" in msg_lower or "step-by-step" in msg_lower:
-            return {
-                "content": f"### Concept Walkthrough: **{topic}**\n\nLet's trace through the recommended mechanism:\n\n• **Core Principle:** Instead of checking every pair ($O(N^2)$), we store seen elements and query their complement in $O(1)$ time.\n• **Trade-off:** We trade a small amount of memory ($O(N)$ auxiliary space) for optimal linear time execution ($O(N)$).\n• **Why It Matters:** In top placement rounds, optimizing time complexity from quadratic to linear is the primary gating criterion.\n\nWould you like to write this in the code sandbox now?",
-                "misconception_detected": None,
-                "affirmation": "Reviewing the complete trade-off prepares you for architectural follow-up questions.",
-                "action_type": "offer_code",
-                "suggested_actions": ["Open Code Sandbox & Practice", "Explain edge case handling", "Give me a follow-up interview question"]
-            }
+        if active_mode == "learn":
+            return ["Can you give an example?", "Test my understanding with a problem"]
 
         if active_mode == "project_defense":
-            return {
-                "content": f"### Project Architecture Defense Drill\n\nLet's examine how your project handles production failure modes for a **{role}** candidate.\n\n1. **Data Consistency & Concurrency:** In your system, what happens when two clients attempt to write to the same resource simultaneously? Do you rely on optimistic locking or database row-level locks?\n2. **Failure Recovery:** If your background worker or inference task crashes mid-execution, how is state restored without data loss?\n\nHow did you structure this trade-off?",
-                "misconception_detected": None,
-                "affirmation": "You are focusing on distributed architecture decisions that interviewers scrutinize.",
-                "action_type": None,
-                "suggested_actions": ["Explain our optimistic locking approach", "Discuss message queue retry deadlocks", "Ask about cache invalidation"]
-            }
-        elif active_mode == "coding":
-            return {
-                "content": f"### Sandbox Code & Complexity Feedback\n\nI've analyzed your submission in the coding workspace for **{topic}**:\n\n• **Algorithmic Structure:** The core traversal logic is sound, but consider how edge cases (empty collections, duplicates, or boundary values) behave.\n• **Time & Space Complexity:** Aim for optimal linear time $O(N)$ with an auxiliary hash map rather than nested lookups $O(N^2)$.\n\nWould you like a subtle nudge hint on how to handle the edge case, or would you like to review the step-by-step approach?",
-                "misconception_detected": None,
-                "affirmation": "Your overall approach establishes a solid foundation for optimal execution.",
-                "action_type": "offer_code",
-                "suggested_actions": ["Give me a subtle nudge hint", "Explain optimal time complexity", "Let me revise my code in sandbox"]
-            }
-        elif active_mode == "learn":
-            return {
-                "content": f"### 5-Step Concept Explanation: **{topic}**\n\nLet's break this down intuitively:\n\n1. **The Core Intuition:** Think of `{topic}` like a library checkout desk. If a patron has never checked out a book, an `INNER JOIN` drops them entirely, whereas a `LEFT JOIN` keeps the patron and returns `NULL` for their checkout card.\n2. **Common Trap:** Filtering `WHERE card IS NULL` after an `INNER JOIN` yields 0 rows because inner joins already discarded unmatched records.\n3. **Quick Check:** What operator would you use to filter unmatched records when joining two related tables?",
-                "misconception_detected": "Assuming INNER JOIN preserves unmatched records before applying WHERE filters.",
-                "affirmation": "You recognize that filtering NULL values is key to isolating missing records.",
-                "action_type": "retest_question",
-                "suggested_actions": ["Use LEFT JOIN with WHERE IS NULL", "Explain with another real-world analogy", "Try an independent coding question"]
-            }
-        elif active_mode == "retest":
-            return {
-                "content": f"### Independent Retention Retest: **{topic}**\n\nHere is a fresh retention question targeting your diagnosed knowledge gap:\n\n> *In high-concurrency systems, how does an indexing strategy on foreign keys prevent table locks during cascade updates, and what is the trade-off on write throughput?*\n\nTake a moment to formulate your answer independently, or ask for a progressive hint if you want to explore the underlying mechanism first.",
-                "misconception_detected": None,
-                "affirmation": "Targeting your diagnosed knowledge gaps creates the highest placement ROI.",
-                "action_type": "retest_question",
-                "suggested_actions": ["Foreign key index prevents full table locks", "Trade-off is slower INSERT/UPDATE writes", "Give me a hint on table locks"]
-            }
-        elif active_mode == "interview":
-            return {
-                "content": f"### Mock Technical Interview for **{role}**\n\nLet's practice a core scenario commonly tested in top placement rounds:\n\n> *Suppose our system processes incoming events and needs to detect duplicates within a 15-minute sliding window while maintaining low latency. How would you design this data pipeline?*\n\nConsider:\n• What storage engine or caching layer would you choose (e.g. Redis TTL, sliding logs)?\n• How do you handle clock drift across server nodes?",
-                "misconception_detected": None,
-                "affirmation": "Practicing realistic scenario questions builds genuine confidence.",
-                "action_type": None,
-                "suggested_actions": ["Use Redis sorted sets with sliding expiration", "Use in-memory Bloom filter with TTL", "Ask for a progressive hint"]
-            }
-        else: # general_chat
-            return {
-                "content": f"### Placement Strategy & Guidance\n\nI am here to guide your preparation journey for **{role}**.\n\nWe can personalize your practice around:\n• Your uploaded **resume** and key project implementations\n• Your **target company** skill specifications\n• Your **GitHub repositories** and architectural defense readiness\n• High-frequency questions reported in recent candidate interview rounds\n\nWhat would you like to explore next?",
-                "misconception_detected": None,
-                "affirmation": "Having a clear target role is the foundation of focused preparation.",
-                "action_type": None,
-                "suggested_actions": ["Help me build my preparation plan", "Practice technical interview questions", "Explore coding problems in sandbox"]
-            }
+            return ["Probe scalability tradeoffs", "Ask about failure handling"]
+
+        if active_mode == "retest":
+            return ["I want to try answering", "Give me a slight hint"]
+
+        # In general_chat, do not clutter conversation with generic buttons
+        return []
+
+    @staticmethod
+    def _build_contextual_fallback(payload: MentorChatMessageRequest, context: Dict[str, Any], active_mode: str) -> str:
+        """High-signal, natural fallback when external LLM tunnel encounters network latency or disconnect.
+        Strictly adheres to conversational, mentor-driven principles without rigid template labels.
+        """
+        role = context.get("target_role") or "Software Development Engineer"
+        msg = payload.message.lower()
+
+        # Specific questions handling
+        if "process" in msg and "thread" in msg:
+            return (
+                "A process is an independent execution unit with its own dedicated memory address space, while a thread is a lightweight path of execution within a process that shares memory and resources with other threads in that same process.\n\n"
+                "To see this in a real application: consider a modern web browser like Google Chrome.\n"
+                "- Each browser tab is typically launched as a separate **process**. If one tab crashes due to an out-of-memory error or infinite loop, the other tabs remain unaffected because of process memory isolation.\n"
+                "- Within a single tab process, there are multiple **threads**: a main UI thread handling user clicks, a rendering thread drawing HTML/CSS to the screen, and background worker threads handling network requests and asset loading concurrently.\n\n"
+                "Would you like to explore how operating system context switches differ in CPU overhead between processes and threads?"
+            )
+
+        if "two sum" in msg or ("sum" in msg and "target" in msg) or (("hint" in msg or "nudge" in msg) and active_mode == "coding"):
+            return (
+                "Before jumping into nested loops ($O(N^2)$), think about what information you need from the numbers you have already visited.\n\n"
+                "If the current number you are inspecting is `x`, what exact value `target - x` would complete the required sum? Could you check whether you've already seen that complement in $O(1)$ time rather than scanning the rest of the array each time?\n\n"
+                "What data structure would let you look up previously visited numbers and their indices in constant time?"
+            )
+
+        if "backpropagation" in msg:
+            return (
+                "Think of backpropagation as applying the chain rule of calculus in reverse through a computational graph.\n\n"
+                "In the forward pass, input features pass through each layer to produce a prediction, which is compared to the ground truth to calculate a scalar loss (error).\n\n"
+                "In the backward pass, backpropagation computes the gradient of this loss with respect to every weight in the network by stepping backward through the layers. It answers the question: *'If I nudge this specific weight slightly up, does the total error increase or decrease, and by how much?'*\n\n"
+                "Once these gradients are known, optimization algorithms like gradient descent update the weights in the direction that minimizes the loss.\n\n"
+                "Does thinking of it as repeated chain-rule derivatives make intuitive sense, or would you like to trace a single neuron with an activation function together?"
+            )
+
+        if active_mode == "interview":
+            return (
+                f"Let's practice a realistic scenario often asked in {role} technical rounds:\n\n"
+                "Suppose you need to design a rate limiter for an API that handles up to 50,000 requests per second across multiple distributed server instances.\n\n"
+                "How would you approach this problem, and what data store or algorithm (like token bucket, leaky bucket, or sliding window) would you choose?"
+            )
+
+        if active_mode == "coding":
+            return (
+                "Let's break down your current approach. What is the fundamental invariant you are maintaining during iteration, and how does your logic handle edge cases like an empty input or duplicate elements?"
+            )
+
+        if active_mode == "learn":
+            return (
+                f"To understand this concept deeply, let's connect it to a practical engineering problem. Where in production systems have you seen or expected this pattern to apply, and what trade-offs come with it?"
+            )
+
+        if active_mode == "project_defense":
+            return (
+                f"Let's examine the architectural decisions in your project for a {role} role:\n\n"
+                "When your system experiences concurrent writes to the same record or resource, how do you ensure data consistency without introducing deadlock risks or severe database contention?"
+            )
+
+        if active_mode == "retest":
+            return (
+                "Here is an independent retention question to test your understanding:\n\n"
+                "When designing an index on a database table with high write volume, why might adding an index degrade INSERT/UPDATE throughput, and how do database engines manage that tradeoff?"
+            )
+
+        # General chat default
+        return (
+            "I'm here to help you prepare effectively. We can discuss core computer science concepts, conduct mock interview rounds, optimize coding solutions, or drill into your project architecture. What would you like to focus on?"
+        )
 
