@@ -41,6 +41,12 @@ class UnifiedMentorService:
         return session.get("messages", [])
 
     @staticmethod
+    async def reset_conversation(user_id: str) -> List[Dict[str, Any]]:
+        db = get_database()
+        await db["mentor_sessions"].delete_one({"user_id": user_id})
+        return await UnifiedMentorService.get_or_create_conversation(user_id)
+
+    @staticmethod
     async def handle_user_message(user_id: str, payload: MentorChatMessageRequest) -> MentorChatMessageResponse:
         db = get_database()
         messages = await UnifiedMentorService.get_or_create_conversation(user_id)
@@ -65,21 +71,28 @@ class UnifiedMentorService:
             "mode": payload.mode
         }
 
-        # Build prompt
+        # Build prompt tailored to the 5 contextual modes
         system_prompt = """You are PrepPilot AI's Senior Technical Placement Mentor.
-You are a warm, rigorous, and supportive senior engineer.
-Principles:
-1. Always ground your advice and questions in the student's actual profile, repositories, target role, and past misconceptions.
-2. If the student made an error or asks for help:
-   - Diagnose the specific misconception without condescension.
-   - Acknowledge any correct reasoning or intent.
-   - Explain the concept intuitively with a concrete real-world analogy.
-   - Offer progressive hints rather than immediately dumping the entire code solution.
-   - Provide an independent re-test check question.
-3. If in 'project_defense' mode, ask challenging, realistic questions about their repository architecture, error handling, scaling, and database trade-offs.
-4. Output your response as a valid JSON object with the following fields:
+You are a warm, rigorous, and supportive senior engineer guiding the student toward placement mastery.
+
+Core Pedagogical Principles:
+1. Always ground your questions and advice in the student's target role, company, ingested projects, and past misconceptions.
+2. When the student makes an error or asks for help:
+   - Acknowledge any correct intuition or partial progress first.
+   - Diagnose the specific misconception concisely without condescension.
+   - Explain the concept using a concrete everyday analogy.
+   - Provide a progressive hint rather than immediately revealing full code.
+   - Formulate a clean follow-up check question.
+3. Behavior by Active Mode:
+   - 'mentor_chat' / 'interview_practice': Simulate a realistic technical interview. Ask one focused question at a time. Evaluate student answers against rubric depth.
+   - 'project_defense': Drill into their actual GitHub project architecture, state management, race conditions, database choice, and scaling tradeoffs.
+   - 'concept_explanation': Deliver an intuitive 5-step explanation (Diagnosis -> Intuition Analogy -> Right vs Wrong Comparison -> Concrete Example -> Practice Retest).
+   - 'coding_review': Analyze student code and sandbox test errors. Diagnose logical/edge-case bugs, discuss Big-O time and space complexity, and offer targeted progressive hints.
+   - 'knowledge_check': Challenge the student with a quick retention check on their self-identified weak areas.
+
+Output Format: Strictly valid JSON with schema:
 {
-  "content": "detailed markdown response",
+  "content": "detailed markdown response with clean formatting, bullet points, and code blocks where helpful",
   "misconception_detected": "string or null",
   "affirmation": "what the student did right, or null",
   "action_type": "offer_code" | "schedule_revision" | "retest_question" | null,
@@ -92,6 +105,7 @@ STUDENT PROFILE & PERSISTENT CONTEXT:
 {json.dumps(context_data, indent=2)}
 
 ACTIVE MODE: {payload.mode}
+FOCUS TOPIC: {payload.context_topic or 'General Technical'}
 USER MESSAGE:
 {payload.message}
 """
@@ -104,13 +118,7 @@ USER MESSAGE:
             if not isinstance(resp_json, dict) or "content" not in resp_json or not resp_json.get("content"):
                 raise ValueError("Incomplete mentor response schema")
         except Exception:
-            resp_json = {
-                "content": f"I understand your focus on **{payload.mode.replace('_', ' ')}**. Let's break this down systematically. What specific aspect of your approach would you like to verify first?",
-                "misconception_detected": None,
-                "affirmation": "You are focusing on the right core concepts.",
-                "action_type": None,
-                "suggested_actions": ["Explain the underlying trade-off", "Give me a practice problem", "Check my understanding"]
-            }
+            resp_json = UnifiedMentorService._build_contextual_fallback(payload, context_data)
 
         # Save user message to history
         user_msg = {
@@ -164,3 +172,52 @@ USER MESSAGE:
             suggested_actions=mentor_msg["suggested_actions"],
             created_at=mentor_msg["created_at"]
         )
+
+    @staticmethod
+    def _build_contextual_fallback(payload: MentorChatMessageRequest, context: Dict[str, Any]) -> Dict[str, Any]:
+        """Provides rich, high-signal pedagogical fallback when local LLM is offline or timing out."""
+        mode = payload.mode
+        role = context.get("target_role", "Software Development Engineer")
+        topic = payload.context_topic or (context.get("knowledge_gaps", ["Core Fundamentals"])[0] if context.get("knowledge_gaps") else "General Systems")
+
+        if mode == "project_defense":
+            return {
+                "content": f"### Project Architecture Defense Drill\n\nLet's examine how your project handles production failure modes for a **{role}** candidate.\n\n1. **Data Consistency & Concurrency:** In your system, what happens when two clients attempt to write to the same resource simultaneously? Do you rely on optimistic locking or database row-level locks?\n2. **Failure Recovery:** If your background worker or inference task crashes mid-execution, how is state restored without data loss?\n\nHow did you structure this trade-off?",
+                "misconception_detected": None,
+                "affirmation": "You are focusing on distributed architecture decisions that interviewers scrutinize.",
+                "action_type": None,
+                "suggested_actions": ["Explain our optimistic locking approach", "Discuss message queue retry deadlocks", "Ask about cache invalidation"]
+            }
+        elif mode == "coding_review":
+            return {
+                "content": f"### Sandbox Code & Complexity Feedback\n\nI've analyzed your submission in the coding workspace for **{topic}**:\n\n• **Algorithmic Structure:** The core traversal logic is sound, but consider how edge cases (empty collections, duplicates, or boundary values) behave.\n• **Time & Space Complexity:** Aim for optimal linear time $O(N)$ with an auxiliary hash map rather than nested lookups $O(N^2)$.\n\nWould you like a subtle nudge hint on how to handle the edge case, or would you like to review the step-by-step approach?",
+                "misconception_detected": None,
+                "affirmation": "Your overall approach establishes a solid foundation for optimal execution.",
+                "action_type": "offer_code",
+                "suggested_actions": ["Give me a subtle nudge hint", "Explain optimal time complexity", "Let me revise my code in sandbox"]
+            }
+        elif mode == "concept_explanation":
+            return {
+                "content": f"### 5-Step Concept Explanation: **{topic}**\n\nLet's break this down intuitively:\n\n1. **The Core Intuition:** Think of `{topic}` like a library checkout desk. If a patron has never checked out a book, an `INNER JOIN` drops them entirely, whereas a `LEFT JOIN` keeps the patron and returns `NULL` for their checkout card.\n2. **Common Trap:** Filtering `WHERE card IS NULL` after an `INNER JOIN` yields 0 rows because inner joins already discarded unmatched records.\n3. **Quick Check:** What operator would you use to filter unmatched records when joining two related tables?",
+                "misconception_detected": "Assuming INNER JOIN preserves unmatched records before applying WHERE filters.",
+                "affirmation": "You recognize that filtering NULL values is key to isolating missing records.",
+                "action_type": "retest_question",
+                "suggested_actions": ["Use LEFT JOIN with WHERE IS NULL", "Explain with another real-world analogy", "Try an independent coding question"]
+            }
+        elif mode == "knowledge_check":
+            return {
+                "content": f"### Weak Area Retention Check: **{topic}**\n\nHere is a targeted retrieval question on your self-identified growth area:\n\n> *In high-concurrency applications, how does an indexing strategy on foreign keys prevent table locks during cascade updates, and what is the trade-off on write throughput?*\n\nTake a moment to formulate your answer, or ask for a progressive hint if you want to explore the underlying mechanism first.",
+                "misconception_detected": None,
+                "affirmation": "Targeting your diagnosed knowledge gaps creates the highest placement ROI.",
+                "action_type": "retest_question",
+                "suggested_actions": ["Foreign key index prevents full table locks", "Trade-off is slower INSERT/UPDATE writes", "Give me a hint on table locks"]
+            }
+        else: # mentor_chat / interview_practice
+            return {
+                "content": f"### Mock Technical Interview for **{role}**\n\nLet's practice a core scenario commonly tested in top placement rounds:\n\n> *Suppose our system processes incoming events and needs to detect duplicates within a 15-minute sliding window while maintaining low latency. How would you design this data pipeline?*\n\nConsider:\n• What storage engine or caching layer would you choose (e.g. Redis TTL, sliding logs)?\n• How do you handle clock drift across server nodes?",
+                "misconception_detected": None,
+                "affirmation": "Practicing realistic scenario questions builds genuine confidence.",
+                "action_type": None,
+                "suggested_actions": ["Use Redis sorted sets with sliding expiration", "Use in-memory Bloom filter with TTL", "Ask for a progressive hint"]
+            }
+

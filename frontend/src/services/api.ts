@@ -254,6 +254,12 @@ class ApiService {
       body: JSON.stringify(data),
     });
   }
+
+  async resetMentorSession(): Promise<MentorChatMessage[]> {
+    return this.request<MentorChatMessage[]>('/prep/mentor-session/reset', {
+      method: 'POST',
+    });
+  }
 }
 
 export const api = new ApiService();

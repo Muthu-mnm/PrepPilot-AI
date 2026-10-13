@@ -109,6 +109,14 @@ async def test_unified_mentor_execution_feedback_loop():
     # initial greeting + user execution turn + mentor response
     assert len(history) >= 3
 
+    # 4. Test session reset
+    reset_msgs = await UnifiedMentorService.reset_conversation(test_user_id)
+    assert len(reset_msgs) == 1
+    assert reset_msgs[0]["role"] == "mentor"
+    reloaded_history = await UnifiedMentorService.get_or_create_conversation(test_user_id)
+    assert len(reloaded_history) == 1
+
+
 
 @pytest.mark.asyncio
 async def test_sqlite_execution_deterministic_pass_and_fail():

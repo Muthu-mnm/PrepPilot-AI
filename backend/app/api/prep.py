@@ -89,3 +89,9 @@ async def get_mentor_messages(current_user: dict = Depends(get_current_user)):
 async def send_mentor_message(payload: MentorChatMessageRequest, current_user: dict = Depends(get_current_user)):
     user_id = str(current_user["_id"])
     return await UnifiedMentorService.handle_user_message(user_id, payload)
+
+@router.post("/mentor-session/reset")
+async def reset_mentor_session(current_user: dict = Depends(get_current_user)):
+    user_id = str(current_user["_id"])
+    return await UnifiedMentorService.reset_conversation(user_id)
+

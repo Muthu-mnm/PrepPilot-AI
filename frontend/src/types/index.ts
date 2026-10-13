@@ -254,6 +254,7 @@ export interface PreparationPlanResponse {
   project_defense_questions: string[];
   milestones: MilestoneItem[];
   evidence_notes: string;
+  setup_data?: PreparationSetupRequest;
   created_at: string;
   updated_at: string;
 }

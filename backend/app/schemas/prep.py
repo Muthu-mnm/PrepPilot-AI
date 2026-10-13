@@ -69,6 +69,7 @@ class PreparationPlanResponse(BaseModel):
     project_defense_questions: List[str]
     milestones: List[MilestoneItem]
     evidence_notes: str
+    setup_data: Optional[PreparationSetupRequest] = None
     created_at: str
     updated_at: str
 
