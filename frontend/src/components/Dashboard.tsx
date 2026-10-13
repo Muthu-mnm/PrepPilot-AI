@@ -58,6 +58,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
     }
   };
 
+  // Helper to format milestone titles cleanly without duplicates
+  const formatMilestoneTitle = (title: string, index: number) => {
+    if (!title) return `Milestone ${index + 1}`;
+    const cleaned = title.replace(/^milestone\s*\d+\s*[:\-]\s*/i, '').trim();
+    return `Milestone ${index + 1}: ${cleaned}`;
+  };
+
   const completedMilestonesCount = plan ? plan.milestones.filter(m => m.completed).length : 0;
   const totalMilestonesCount = plan ? plan.milestones.length : 0;
   const milestoneProgressPct = totalMilestonesCount > 0 ? Math.round((completedMilestonesCount / totalMilestonesCount) * 100) : 0;
@@ -65,16 +72,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
   // Next recommended action calculation
   const nextIncompleteMilestone = plan ? plan.milestones.find(m => !m.completed) : null;
   const nextActionTitle = nextIncompleteMilestone 
-    ? `Milestone ${plan?.milestones.indexOf(nextIncompleteMilestone)! + 1}: ${nextIncompleteMilestone.title}`
+    ? formatMilestoneTitle(nextIncompleteMilestone.title, plan ? plan.milestones.indexOf(nextIncompleteMilestone) : 0)
     : plan 
-      ? 'Comprehensive Mock Interview & Project Defense'
-      : 'Configure Your Preparation Profile';
+      ? 'Mock Interview & Project Defense'
+      : 'Set Up Preparation Profile';
 
   const nextActionDescription = nextIncompleteMilestone
     ? nextIncompleteMilestone.description
     : plan
-      ? 'All initial milestones completed. Practice full-length technical rounds and architectural defense with My Mentor.'
-      : 'Upload your resume and enter your target role to generate a personalized placement plan.';
+      ? 'All initial milestones completed. Practice full-length technical rounds with My Mentor.'
+      : 'Upload your resume and target role to generate a customized placement plan.';
 
   // Format upcoming interview date & remaining days
   const calculateDaysRemaining = (deadlineStr?: string) => {
@@ -93,56 +100,56 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
   const daysRemaining = calculateDaysRemaining(plan?.target_deadline);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
       
       {/* Hero: Welcome & Next Recommended Action Card */}
       <div style={{
         background: 'linear-gradient(135deg, #1E1B4B 0%, #312E81 50%, #4338CA 100%)',
         borderRadius: 'var(--radius-lg)',
-        padding: '28px 32px',
+        padding: '24px 28px',
         color: 'white',
-        boxShadow: '0 8px 24px rgba(49, 46, 129, 0.25)',
+        boxShadow: '0 6px 20px rgba(49, 46, 129, 0.2)',
         position: 'relative',
         overflow: 'hidden'
       }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '20px', position: 'relative', zIndex: 1 }}>
-          <div style={{ maxWidth: '680px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', position: 'relative', zIndex: 1 }}>
+          <div style={{ maxWidth: '640px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
               <span style={{ 
                 background: 'rgba(255,255,255,0.18)', 
                 backdropFilter: 'blur(8px)',
-                padding: '4px 10px', 
+                padding: '3px 8px', 
                 borderRadius: 'var(--radius-full)', 
-                fontSize: '0.78rem', 
+                fontSize: '0.72rem', 
                 fontWeight: 700, 
-                letterSpacing: '0.04em',
+                letterSpacing: '0.03em',
                 textTransform: 'uppercase'
               }}>
-                🎯 Next Recommended Action
+                🎯 Next Action
               </span>
               {daysRemaining !== null && (
                 <span style={{ 
                   background: daysRemaining > 14 ? 'rgba(16, 185, 129, 0.25)' : 'rgba(245, 158, 11, 0.25)', 
                   border: '1px solid rgba(255,255,255,0.2)',
-                  padding: '4px 10px', 
+                  padding: '3px 8px', 
                   borderRadius: 'var(--radius-full)', 
-                  fontSize: '0.78rem', 
+                  fontSize: '0.72rem', 
                   fontWeight: 600 
                 }}>
-                  📅 Interview: {plan?.target_deadline} ({daysRemaining > 0 ? `${daysRemaining} days remaining` : 'Today'})
+                  📅 {plan?.target_deadline} ({daysRemaining > 0 ? `${daysRemaining}d left` : 'Today'})
                 </span>
               )}
             </div>
 
-            <h1 style={{ fontSize: '1.65rem', fontWeight: 800, margin: '8px 0', letterSpacing: '-0.02em', lineHeight: 1.3 }}>
+            <h1 style={{ fontSize: '1.45rem', fontWeight: 800, margin: '6px 0', letterSpacing: '-0.02em', lineHeight: 1.25 }}>
               {nextActionTitle}
             </h1>
 
-            <p style={{ fontSize: '0.92rem', opacity: 0.9, lineHeight: 1.6, margin: '8px 0 20px 0' }}>
+            <p style={{ fontSize: '0.88rem', opacity: 0.9, lineHeight: 1.5, margin: '6px 0 16px 0' }}>
               {nextActionDescription}
             </p>
 
-            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
               <button 
                 onClick={() => onNavigate('mentor')} 
                 className="btn btn-primary" 
@@ -151,13 +158,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
                   color: '#312E81', 
                   fontWeight: 700, 
                   border: 'none',
-                  padding: '11px 22px',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+                  padding: '9px 18px',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                  fontSize: '0.84rem'
                 }}
               >
-                <Sparkles size={18} color="#4338CA" />
+                <Sparkles size={16} color="#4338CA" />
                 <span>Continue with My Mentor</span>
-                <ArrowRight size={16} color="#4338CA" />
+                <ArrowRight size={15} color="#4338CA" />
               </button>
 
               <button 
@@ -166,11 +174,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
                 style={{ 
                   background: 'rgba(255,255,255,0.12)', 
                   borderColor: 'rgba(255,255,255,0.25)', 
-                  color: 'white' 
+                  color: 'white',
+                  fontSize: '0.84rem',
+                  padding: '9px 16px'
                 }}
               >
-                <Target size={16} />
-                <span>{plan ? 'View / Edit Preparation Plan' : 'Set Up Profile'}</span>
+                <Target size={15} />
+                <span>{plan ? 'Edit Plan' : 'Set Up Profile'}</span>
               </button>
             </div>
           </div>
@@ -181,38 +191,30 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
             backdropFilter: 'blur(10px)',
             border: '1px solid rgba(255,255,255,0.18)',
             borderRadius: 'var(--radius-md)', 
-            padding: '16px 20px',
-            minWidth: '220px'
+            padding: '14px 18px',
+            minWidth: '200px'
           }}>
-            <div style={{ fontSize: '0.75rem', opacity: 0.8, textTransform: 'uppercase', fontWeight: 700 }}>
+            <div style={{ fontSize: '0.72rem', opacity: 0.8, textTransform: 'uppercase', fontWeight: 700 }}>
               Active Track
             </div>
-            <div style={{ fontSize: '1.05rem', fontWeight: 800, marginTop: '4px' }}>
+            <div style={{ fontSize: '0.98rem', fontWeight: 800, marginTop: '2px' }}>
               {plan?.target_role || user?.target_role || 'AI & Full Stack Engineer'}
             </div>
             {plan?.target_company && (
-              <div style={{ fontSize: '0.84rem', opacity: 0.9, marginTop: '2px' }}>
+              <div style={{ fontSize: '0.8rem', opacity: 0.9, marginTop: '1px' }}>
                 at <strong>{plan.target_company}</strong>
               </div>
             )}
-            <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid rgba(255,255,255,0.15)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', marginBottom: '4px' }}>
-                <span>Milestone Completion</span>
+            <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid rgba(255,255,255,0.15)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: '4px' }}>
+                <span>Milestone Progress</span>
                 <strong>{milestoneProgressPct}%</strong>
               </div>
-              <div style={{ height: '6px', background: 'rgba(255,255,255,0.2)', borderRadius: '4px', overflow: 'hidden' }}>
+              <div style={{ height: '5px', background: 'rgba(255,255,255,0.2)', borderRadius: '4px', overflow: 'hidden' }}>
                 <div style={{ height: '100%', width: `${milestoneProgressPct}%`, background: '#34D399', borderRadius: '4px' }} />
               </div>
             </div>
           </div>
-        </div>
-      </div>
-
-      {/* Integrity Notice Banner */}
-      <div className="notice-banner">
-        <ShieldCheck size={20} color="var(--accent-primary)" style={{ flexShrink: 0 }} />
-        <div>
-          <strong>Measurable Knowledge Principle:</strong> PrepPilot AI records verifiable, deterministic attempts. We distinguish independent successes from hint-assisted and solution-assisted practice. PrepPilot AI does not predict selection probability or guarantee placements.
         </div>
       </div>
 
@@ -280,7 +282,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {plan.milestones.map((m) => (
+                {plan.milestones.map((m, idx) => (
                   <div 
                     key={m.milestone_id} 
                     style={{ 
@@ -301,7 +303,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
                       style={{ marginTop: '3px', cursor: 'pointer', width: '16px', height: '16px' }}
                     />
                     <div style={{ flex: 1, textDecoration: m.completed ? 'line-through' : 'none', color: m.completed ? 'var(--text-muted)' : 'var(--text-primary)' }}>
-                      <strong>{m.title}</strong>
+                      <strong>{formatMilestoneTitle(m.title, idx)}</strong>
                       <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
                         {m.description}
                       </div>
@@ -313,12 +315,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
 
             {/* Project Defense Drill preview */}
             {plan.project_defense_questions && plan.project_defense_questions.length > 0 && (
-              <div style={{ padding: '12px 14px', background: 'var(--bg-main)', borderRadius: 'var(--radius-sm)', border: '1px dashed var(--accent-border)' }}>
-                <div style={{ fontWeight: 700, fontSize: '0.82rem', color: 'var(--accent-primary)', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <Code2 size={15} />
+              <div style={{ padding: '10px 12px', background: 'var(--bg-main)', borderRadius: 'var(--radius-sm)', border: '1px dashed var(--accent-border)' }}>
+                <div style={{ fontWeight: 700, fontSize: '0.78rem', color: 'var(--accent-primary)', marginBottom: '3px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Code2 size={14} />
                   <span>Next Project Defense Drill:</span>
                 </div>
-                <div style={{ fontSize: '0.82rem', fontStyle: 'italic', color: 'var(--text-primary)' }}>
+                <div style={{ fontSize: '0.8rem', fontStyle: 'italic', color: 'var(--text-primary)' }}>
                   "{plan.project_defense_questions[0]}"
                 </div>
               </div>
@@ -338,73 +340,99 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
           </div>
         )}
 
-        {/* Right Column: Recent Learning Activity Feed */}
+        {/* Right Column: Quick Practice Launchpad */}
         <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <BookOpen size={18} color="var(--accent-primary)" />
+            <Sparkles size={18} color="var(--accent-primary)" />
             <h3 style={{ fontSize: '1.1rem', fontWeight: 800, margin: 0 }}>
-              Recent Learning & Verifiable Actions
+              Quick Practice Launchpad
             </h3>
           </div>
 
-          <p className="card-subtitle" style={{ margin: 0 }}>
-            Traceable problem-solving events and mentor interactions.
-          </p>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            {/* Event 1 */}
-            <div style={{ padding: '12px', background: 'var(--bg-main)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-light)', fontSize: '0.82rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
-                  SQL Coding Sandbox Execution
-                </span>
-                <span className="badge badge-verified" style={{ fontSize: '0.68rem' }}>
-                  Passed (100%)
-                </span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {/* Quick action 1: Coding */}
+            <div 
+              onClick={() => onNavigate('mentor')}
+              style={{ 
+                padding: '10px 12px', 
+                background: 'var(--bg-main)', 
+                borderRadius: 'var(--radius-sm)', 
+                border: '1px solid var(--border-light)', 
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between'
+              }}
+              className="quick-launch-row"
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Code2 size={16} color="var(--accent-primary)" />
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: '0.84rem' }}>Coding Sandbox (SQL & Python)</div>
+                  <div style={{ fontSize: '0.74rem', color: 'var(--text-secondary)' }}>Live in-memory SQLite and Python runners</div>
+                </div>
               </div>
-              <div style={{ color: 'var(--text-secondary)', marginTop: '4px' }}>
-                Solved "Customers with No Orders" (SQLite in-memory engine).
-              </div>
+              <ChevronRight size={15} color="var(--text-muted)" />
             </div>
 
-            {/* Event 2 */}
-            <div style={{ padding: '12px', background: 'var(--bg-main)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-light)', fontSize: '0.82rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
-                  GitHub Architecture Defense
-                </span>
-                <span className="badge badge-candidate" style={{ fontSize: '0.68rem' }}>
-                  Brain-Tumor-Segmentation
-                </span>
+            {/* Quick action 2: Project Defense */}
+            <div 
+              onClick={() => onNavigate('mentor')}
+              style={{ 
+                padding: '10px 12px', 
+                background: 'var(--bg-main)', 
+                borderRadius: 'var(--radius-sm)', 
+                border: '1px solid var(--border-light)', 
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between'
+              }}
+              className="quick-launch-row"
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <ShieldCheck size={16} color="#059669" />
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: '0.84rem' }}>GitHub Project Defense</div>
+                  <div style={{ fontSize: '0.74rem', color: 'var(--text-secondary)' }}>Architectural drills on your ingested repos</div>
+                </div>
               </div>
-              <div style={{ color: 'var(--text-secondary)', marginTop: '4px' }}>
-                Defended model inference pipeline latency and memory constraints.
-              </div>
+              <ChevronRight size={15} color="var(--text-muted)" />
             </div>
 
-            {/* Event 3 */}
-            <div style={{ padding: '12px', background: 'var(--bg-main)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-light)', fontSize: '0.82rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
-                  5-Step Concept Explanation
-                </span>
-                <span className="badge badge-official" style={{ fontSize: '0.68rem' }}>
-                  Misconception Calibrated
-                </span>
+            {/* Quick action 3: Concept calibration */}
+            <div 
+              onClick={() => onNavigate('mentor')}
+              style={{ 
+                padding: '10px 12px', 
+                background: 'var(--bg-main)', 
+                borderRadius: 'var(--radius-sm)', 
+                border: '1px solid var(--border-light)', 
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between'
+              }}
+              className="quick-launch-row"
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <BookOpen size={16} color="#D97706" />
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: '0.84rem' }}>Concept & Misconception Review</div>
+                  <div style={{ fontSize: '0.74rem', color: 'var(--text-secondary)' }}>Targeted analogies and progressive hints</div>
+                </div>
               </div>
-              <div style={{ color: 'var(--text-secondary)', marginTop: '4px' }}>
-                Reviewed SQL Joins & Unmatched NULLs with Senior Mentor.
-              </div>
+              <ChevronRight size={15} color="var(--text-muted)" />
             </div>
           </div>
 
           <button 
             onClick={() => onNavigate('mentor')} 
-            className="btn btn-secondary btn-sm"
-            style={{ width: '100%', marginTop: 'auto' }}
+            className="btn btn-primary btn-sm"
+            style={{ width: '100%', marginTop: 'auto', padding: '9px 14px' }}
           >
             <Sparkles size={14} />
-            <span>Launch Practice Session with Mentor</span>
+            <span>Open My Mentor Room</span>
           </button>
         </div>
 
