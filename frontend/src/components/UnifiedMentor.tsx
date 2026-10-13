@@ -80,7 +80,8 @@ export const UnifiedMentor: React.FC<UnifiedMentorProps> = ({
 
   // 2. Profile & Learning Context
   const [plan, setPlan] = useState<PreparationPlanResponse | null>(null);
-  const [showContextPanel, setShowContextPanel] = useState(true);
+  const [showContextPanel, setShowContextPanel] = useState(false);
+  const [showHintMenu, setShowHintMenu] = useState(false);
   const [copiedCodeIdx, setCopiedCodeIdx] = useState<number | null>(null);
 
   // 3. Embedded Monaco Editor & Sandbox State
@@ -260,9 +261,7 @@ export const UnifiedMentor: React.FC<UnifiedMentorProps> = ({
   // Switch Mode smoothly without losing conversation
   const handleSwitchMode = (newMode: MentorMode) => {
     setCurrentMode(newMode);
-    if (newMode === 'coding') {
-      setShowEmbeddedEditor(true);
-    }
+    setShowEmbeddedEditor(newMode === 'coding');
   };
 
   // Progressive Hint Handler (Logs hint-assisted attempt)
@@ -742,11 +741,12 @@ Please tailor my interview simulation to reflect these expectations.`;
 
           <button
             onClick={() => setShowContextPanel(!showContextPanel)}
-            className="btn btn-secondary btn-sm"
-            style={{ fontSize: '0.76rem', padding: '4px 8px' }}
-            title="Toggle learning context panel"
+            className={`btn btn-sm ${showContextPanel ? 'btn-primary' : 'btn-secondary'}`}
+            style={{ fontSize: '0.76rem', padding: '4px 10px', display: 'flex', alignItems: 'center', gap: '5px' }}
+            title="Toggle active learning context drawer"
           >
-            {showContextPanel ? <PanelRightClose size={13} /> : <PanelRightOpen size={13} />}
+            <Target size={13} />
+            <span>Context</span>
           </button>
 
           <button
@@ -760,188 +760,125 @@ Please tailor my interview simulation to reflect these expectations.`;
         </div>
       </div>
 
-      {/* 2. Main Workspace Split Layout: Chat + Optional Code Editor + Optional Context Panel */}
+      {/* 2. Main Workspace Split Layout: Dominant Chat + Contextual Code Sandbox */}
       <div 
         className="mentor-split-layout"
         style={{
-          gridTemplateColumns: showEmbeddedEditor && showContextPanel
-            ? '1.1fr 1fr 280px'
-            : showEmbeddedEditor
-              ? '1fr 1.05fr'
-              : showContextPanel
-                ? '1fr 280px'
-                : '1fr'
+          display: 'grid',
+          gridTemplateColumns: showEmbeddedEditor ? '1fr 1fr' : '1fr',
+          gap: '16px',
+          height: '100%',
+          position: 'relative'
         }}
       >
 
-        {/* Central Active Conversation Thread */}
-        <div className="mentor-chat-column">
-          
-          {/* Subheader: Current Mode Tagline & Progressive Hint Quick Toolbar */}
-          <div style={{
-            padding: '8px 16px',
-            background: 'var(--bg-main)',
-            borderBottom: '1px solid var(--border-light)',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            flexWrap: 'wrap',
-            gap: '8px'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem' }}>
-              <span style={{ fontWeight: 700, color: 'var(--accent-primary)' }}>
-                {currentModeInfo.label}:
-              </span>
-              <span style={{ color: 'var(--text-secondary)' }}>
-                {currentModeInfo.tagline}
-              </span>
-            </div>
-
-            {/* Progressive Hint Buttons */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>Hints:</span>
-              <button
-                onClick={() => handleRequestProgressiveHint('nudge')}
-                disabled={sending}
-                className="btn btn-secondary btn-sm"
-                style={{ padding: '2px 8px', fontSize: '0.72rem', borderRadius: 'var(--radius-full)' }}
-                title="Subtle directional hint without revealing answer"
-              >
-                <Lightbulb size={11} color="var(--warning)" />
-                <span>Nudge</span>
-              </button>
-
-              <button
-                onClick={() => handleRequestProgressiveHint('structural')}
-                disabled={sending}
-                className="btn btn-secondary btn-sm"
-                style={{ padding: '2px 8px', fontSize: '0.72rem', borderRadius: 'var(--radius-full)' }}
-                title="Algorithmic or architectural structure hint"
-              >
-                <HelpCircle size={11} color="var(--accent-primary)" />
-                <span>Structure</span>
-              </button>
-
-              <button
-                onClick={() => handleRequestProgressiveHint('solution')}
-                disabled={sending}
-                className="btn btn-secondary btn-sm"
-                style={{ padding: '2px 8px', fontSize: '0.72rem', borderRadius: 'var(--radius-full)' }}
-                title="In-depth step-by-step walkthrough"
-              >
-                <GraduationCap size={11} color="var(--success)" />
-                <span>Walkthrough</span>
-              </button>
-            </div>
-          </div>
-
+        {/* Central Dominant Conversation Thread */}
+        <div 
+          className="mentor-chat-column"
+          style={{
+            maxWidth: showEmbeddedEditor ? '100%' : '880px',
+            margin: '0 auto',
+            width: '100%'
+          }}
+        >
           {/* Messages Stream */}
           <div className="mentor-chat-messages">
             {messages.length === 0 ? (
-              /* Useful Welcome State When No Conversation Exists */
-              <div style={{
-                margin: 'auto',
-                maxWidth: '620px',
-                background: 'var(--bg-main)',
-                border: '1px solid var(--border-light)',
-                borderRadius: 'var(--radius-xl)',
-                padding: '28px',
-                textAlign: 'center'
-              }}>
-                <div style={{
-                  width: '44px',
-                  height: '44px',
-                  borderRadius: 'var(--radius-full)',
-                  background: 'var(--accent-light)',
-                  color: 'var(--accent-primary)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  margin: '0 auto 14px auto'
-                }}>
-                  <Sparkles size={22} />
+              /* Clean ChatGPT-Style Welcome State */
+              <div className="mentor-welcome-hero">
+                <div className="mentor-welcome-avatar">
+                  <Sparkles size={24} />
                 </div>
 
-                <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '6px' }}>
-                  Welcome to PrepPilot AI
+                <h2 className="mentor-welcome-title">
+                  {plan?.target_role ? `Welcome back to PrepPilot` : `Hi! I'm your PrepPilot mentor.`}
                 </h2>
 
-                <p style={{ fontSize: '0.86rem', color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: '18px' }}>
-                  {plan ? (
+                <p className="mentor-welcome-desc">
+                  {plan?.target_role ? (
                     <>
-                      I am your dedicated mentor for <strong>{plan.target_role}</strong>
+                      I am ready to help you prepare for <strong>{plan.target_role}</strong>
                       {plan.target_company && <> at <strong>{plan.target_company}</strong></>}.
-                      I evaluate your reasoning against technical rubrics, explain trade-offs intuitively, and help you defend your projects.
+                      <br /><br />
+                      How would you like to make progress today?
                     </>
                   ) : (
                     <>
-                      I am your senior technical mentor. Let's personalize your placement preparation using your documents, projects, skills, and goals.
+                      I'll help you prepare for placements based on your goals, skills, projects, and target roles.
+                      <br /><br />
+                      Let's start by understanding your preparation. You can upload your resume, share a company skill specification, add your GitHub projects, or simply tell me what role you're aiming for.
                     </>
                   )}
                 </p>
 
-                {/* 6 Quick Starting Action Chips */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '8px', textAlign: 'left', marginBottom: '20px' }}>
-                  {modeDefinitions.map((mode) => {
-                    const Icon = mode.icon;
-                    return (
-                      <div
-                        key={mode.id}
-                        onClick={() => {
-                          handleSwitchMode(mode.id);
-                          handleSendMessage(mode.starterText);
-                        }}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          padding: '10px 14px',
-                          background: 'var(--bg-surface)',
-                          border: '1px solid var(--border-light)',
-                          borderRadius: 'var(--radius-md)',
-                          cursor: 'pointer',
-                          transition: 'var(--transition)'
-                        }}
-                        className="quick-launch-row"
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                          <Icon size={16} color="var(--accent-primary)" />
-                          <div>
-                            <div style={{ fontSize: '0.84rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                              {mode.label}
-                            </div>
-                            <div style={{ fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
-                              {mode.tagline}
-                            </div>
-                          </div>
-                        </div>
-                        <ArrowRight size={14} color="var(--text-muted)" />
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* Guided Onboarding Quick Button */}
-                <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                {/* Working Action Suggestion Chips */}
+                <div className="mentor-suggestion-chips">
                   <button
-                    onClick={() => setShowAttachmentModal(true)}
-                    className="btn btn-primary btn-sm"
-                    style={{ fontSize: '0.78rem' }}
+                    type="button"
+                    onClick={() => {
+                      setActiveAttachTab('resume');
+                      setShowAttachmentModal(true);
+                    }}
+                    className="mentor-chip"
+                    title="Upload resume in PDF or DOCX"
                   >
-                    <Paperclip size={13} />
-                    <span>Attach Preparation Materials (Resume, Job Spec, GitHub)</span>
+                    <FileText size={14} color="var(--accent-primary)" />
+                    <span>Upload resume</span>
                   </button>
 
-                  {onNavigate && (
-                    <button
-                      onClick={() => onNavigate('profile')}
-                      className="btn btn-secondary btn-sm"
-                      style={{ fontSize: '0.78rem' }}
-                    >
-                      <span>Configure in Profile</span>
-                      <ArrowRight size={13} />
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveAttachTab('company');
+                      setShowAttachmentModal(true);
+                    }}
+                    className="mentor-chip"
+                    title="Upload job specs or paste JD requirements"
+                  >
+                    <Building2 size={14} color="var(--accent-primary)" />
+                    <span>Add company requirements</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveAttachTab('github');
+                      setShowAttachmentModal(true);
+                    }}
+                    className="mentor-chip"
+                    title="Connect GitHub repository URL"
+                  >
+                    <FolderGit2 size={14} color="var(--accent-primary)" />
+                    <span>Add GitHub projects</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setInputMessage('My placement goal is: ');
+                      if (textareaRef.current) {
+                        textareaRef.current.focus();
+                      }
+                    }}
+                    className="mentor-chip"
+                    title="Set target role and placement timeline"
+                  >
+                    <Target size={14} color="var(--accent-primary)" />
+                    <span>Set my placement goal</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleSwitchMode('interview');
+                      handleSendMessage("Let's start a mock interview round for my target role.");
+                    }}
+                    className="mentor-chip"
+                    title="Start a 1-on-1 mock interview drill"
+                  >
+                    <Sparkles size={14} color="var(--accent-primary)" />
+                    <span>Start mock interview</span>
+                  </button>
                 </div>
               </div>
             ) : (
@@ -1210,6 +1147,76 @@ Please tailor my interview simulation to reflect these expectations.`;
                 <Paperclip size={18} color="var(--text-secondary)" />
               </button>
 
+              {/* Contextual Progressive Hints Popover */}
+              <div style={{ position: 'relative' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowHintMenu(!showHintMenu)}
+                  className="btn btn-secondary"
+                  style={{
+                    height: '44px',
+                    padding: '0 11px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    borderRadius: 'var(--radius-md)',
+                    fontSize: '0.78rem',
+                    fontWeight: 600,
+                    color: 'var(--text-primary)'
+                  }}
+                  title="Contextual progressive hints (Nudge, Structure, Walkthrough)"
+                >
+                  <Lightbulb size={15} color="#D97706" />
+                  <span>Hints</span>
+                </button>
+
+                {showHintMenu && (
+                  <div className="mentor-hints-popover">
+                    <div
+                      className="hint-option"
+                      onClick={() => {
+                        setShowHintMenu(false);
+                        handleRequestProgressiveHint('nudge');
+                      }}
+                    >
+                      <Lightbulb size={14} color="#D97706" style={{ marginTop: '2px', flexShrink: 0 }} />
+                      <div>
+                        <strong>Subtle Nudge</strong>
+                        <span>Directional clue without code</span>
+                      </div>
+                    </div>
+
+                    <div
+                      className="hint-option"
+                      onClick={() => {
+                        setShowHintMenu(false);
+                        handleRequestProgressiveHint('structural');
+                      }}
+                    >
+                      <HelpCircle size={14} color="var(--accent-primary)" style={{ marginTop: '2px', flexShrink: 0 }} />
+                      <div>
+                        <strong>Structural Steps</strong>
+                        <span>Algorithmic structure & steps</span>
+                      </div>
+                    </div>
+
+                    <div
+                      className="hint-option"
+                      onClick={() => {
+                        setShowHintMenu(false);
+                        handleRequestProgressiveHint('solution');
+                      }}
+                    >
+                      <GraduationCap size={14} color="var(--success)" style={{ marginTop: '2px', flexShrink: 0 }} />
+                      <div>
+                        <strong>Full Walkthrough</strong>
+                        <span>Step-by-step logic & trade-offs</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <textarea
                 ref={textareaRef}
                 value={inputMessage}
@@ -1449,124 +1456,171 @@ Please tailor my interview simulation to reflect these expectations.`;
           </div>
         )}
 
-        {/* 4. Collapsible Context Panel (Learning Focus & Ingested Projects) */}
-        {showContextPanel && (
-          <div className="mentor-context-sidebar">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '8px', borderBottom: '1px solid var(--border-light)' }}>
-              <span style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                Active Context
-              </span>
-              <span className="badge badge-verified" style={{ fontSize: '0.66rem', padding: '1px 6px' }}>
-                Grounded
-              </span>
+      </div>
+
+      {/* 4. Slide-Over Context Drawer (Learning Focus & Ingested Projects) */}
+      {showContextPanel && (
+        <div className="mentor-context-drawer-backdrop" onClick={() => setShowContextPanel(false)}>
+          <div className="mentor-context-drawer" onClick={(e) => e.stopPropagation()}>
+            <div className="mentor-drawer-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Target size={16} color="var(--accent-primary)" />
+                <span style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                  Active Context & Memory
+                </span>
+              </div>
+              <button 
+                onClick={() => setShowContextPanel(false)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}
+                title="Close drawer"
+              >
+                <X size={18} />
+              </button>
             </div>
 
-            {/* Target Role & Opportunity */}
-            <div style={{ paddingBottom: '12px', borderBottom: '1px solid var(--border-light)' }}>
-              <div style={{ fontSize: '0.72rem', textTransform: 'uppercase', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '4px' }}>
-                Target Placement
+            <div className="mentor-drawer-body">
+              {/* Target Placement */}
+              <div className="mentor-drawer-section">
+                <div className="mentor-drawer-section-title">
+                  Target Placement
+                </div>
+                <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                  {plan?.target_role || 'Not yet configured'}
+                </div>
+                {plan?.target_company && (
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                    🏢 {plan.target_company}
+                  </div>
+                )}
+                {plan?.target_deadline && (
+                  <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                    📅 Deadline: {plan.target_deadline}
+                  </div>
+                )}
               </div>
-              <div style={{ fontSize: '0.86rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                {plan?.target_role || 'Software Development Engineer'}
-              </div>
-              {plan?.target_company && (
-                <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
-                  🏢 {plan.target_company}
+
+              {/* Diagnosed Knowledge Gaps */}
+              {plan?.knowledge_gaps && plan.knowledge_gaps.length > 0 && (
+                <div className="mentor-drawer-section">
+                  <div className="mentor-drawer-section-title">
+                    Identified Weak Areas
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+                    {plan.knowledge_gaps.map((gap, i) => (
+                      <span
+                        key={i}
+                        onClick={() => {
+                          setSelectedTopic(gap);
+                          setCurrentMode('learn');
+                          setShowContextPanel(false);
+                          handleSendMessage(`Can you help me master this weak area: "${gap}"?`);
+                        }}
+                        className="badge badge-candidate"
+                        style={{ cursor: 'pointer', fontSize: '0.74rem' }}
+                        title="Click to start concept drill on this topic"
+                      >
+                        🎯 {gap}
+                      </span>
+                    ))}
+                  </div>
                 </div>
               )}
+
+              {/* Ingested GitHub Repositories */}
+              {plan?.setup_data?.github_repos && plan.setup_data.github_repos.length > 0 && (
+                <div className="mentor-drawer-section">
+                  <div className="mentor-drawer-section-title">
+                    Ingested Repositories
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    {plan.setup_data.github_repos.map((repo: any, i: number) => (
+                      <div
+                        key={i}
+                        onClick={() => {
+                          setCurrentMode('project_defense');
+                          setShowContextPanel(false);
+                          handleSendMessage(`I want to defend the architecture and trade-offs of my repository: "${repo.repo_name}".`);
+                        }}
+                        style={{
+                          padding: '8px 10px',
+                          background: 'var(--bg-main)',
+                          borderRadius: 'var(--radius-sm)',
+                          fontSize: '0.76rem',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          border: '1px solid var(--border-light)'
+                        }}
+                        title="Click to drill into this project's architecture"
+                      >
+                        <FolderGit2 size={13} color="var(--accent-primary)" />
+                        <span style={{ fontWeight: 600 }}>{repo.repo_name}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Attached Session Materials */}
+              {attachedItems.length > 0 && (
+                <div className="mentor-drawer-section">
+                  <div className="mentor-drawer-section-title">
+                    Attached Materials
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    {attachedItems.map((att) => (
+                      <div
+                        key={att.id}
+                        style={{
+                          padding: '6px 8px',
+                          background: 'var(--bg-main)',
+                          borderRadius: 'var(--radius-sm)',
+                          fontSize: '0.74rem',
+                          border: '1px solid var(--border-light)'
+                        }}
+                      >
+                        <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{att.name}</div>
+                        <div style={{ color: 'var(--text-secondary)', fontSize: '0.7rem' }}>{att.summary}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Mode Guide */}
+              <div className="mentor-drawer-section">
+                <div className="mentor-drawer-section-title">
+                  {currentModeInfo.label} Guide
+                </div>
+                <div style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+                  {currentMode === 'general_chat' && 'Conversational advisor. Ask anything about placement strategy, timeline, or plan.'}
+                  {currentMode === 'interview' && 'One question at a time. Evaluated against rubric depth and adaptive follow-ups.'}
+                  {currentMode === 'coding' && 'Monaco sandbox with Python/SQLite execution and error explanation loop.'}
+                  {currentMode === 'learn' && '5-step breakdown: diagnosis, analogy, comparison, concrete code, and practice retest.'}
+                  {currentMode === 'project_defense' && 'Drill into error boundaries, throughput bottlenecks, and concurrency trade-offs.'}
+                  {currentMode === 'retest' && 'Spaced retrieval recall on past misconceptions to verify permanent retention.'}
+                </div>
+              </div>
+
+              {/* Quick Profile Link */}
+              {onNavigate && (
+                <button
+                  onClick={() => {
+                    setShowContextPanel(false);
+                    onNavigate('profile');
+                  }}
+                  className="btn btn-secondary btn-sm"
+                  style={{ width: '100%', fontSize: '0.76rem', marginTop: 'auto' }}
+                >
+                  <span>Edit Full Preparation Profile</span>
+                  <ArrowRight size={12} />
+                </button>
+              )}
             </div>
-
-            {/* Diagnosed Knowledge Gaps (Clickable to switch mode) */}
-            {plan?.knowledge_gaps && plan.knowledge_gaps.length > 0 && (
-              <div style={{ paddingBottom: '12px', borderBottom: '1px solid var(--border-light)' }}>
-                <div style={{ fontSize: '0.72rem', textTransform: 'uppercase', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '6px' }}>
-                  Identified Weak Areas
-                </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
-                  {plan.knowledge_gaps.map((gap, i) => (
-                    <span
-                      key={i}
-                      onClick={() => {
-                        setSelectedTopic(gap);
-                        setCurrentMode('learn');
-                        handleSendMessage(`Can you help me master this weak area: "${gap}"?`);
-                      }}
-                      className="badge badge-candidate"
-                      style={{ cursor: 'pointer', fontSize: '0.7rem' }}
-                      title="Click to start concept drill on this topic"
-                    >
-                      🎯 {gap}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Ingested GitHub Repositories (For Project Defense) */}
-            {plan?.setup_data?.github_repos && plan.setup_data.github_repos.length > 0 && (
-              <div style={{ paddingBottom: '12px', borderBottom: '1px solid var(--border-light)' }}>
-                <div style={{ fontSize: '0.72rem', textTransform: 'uppercase', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '6px' }}>
-                  Ingested Repositories
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  {plan.setup_data.github_repos.map((repo: any, i: number) => (
-                    <div
-                      key={i}
-                      onClick={() => {
-                        setCurrentMode('project_defense');
-                        handleSendMessage(`I want to defend the architecture and trade-offs of my repository: "${repo.repo_name}".`);
-                      }}
-                      style={{
-                        padding: '6px 8px',
-                        background: 'var(--bg-main)',
-                        borderRadius: 'var(--radius-sm)',
-                        fontSize: '0.75rem',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px'
-                      }}
-                      title="Click to drill into this project's architecture"
-                    >
-                      <FolderGit2 size={13} color="var(--accent-primary)" />
-                      <span style={{ fontWeight: 600 }}>{repo.repo_name}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Mode Guide */}
-            <div style={{ background: 'var(--bg-main)', padding: '10px 12px', borderRadius: 'var(--radius-md)', fontSize: '0.76rem' }}>
-              <div style={{ fontWeight: 700, color: 'var(--accent-primary)', marginBottom: '3px' }}>
-                {currentModeInfo.label} Guide
-              </div>
-              <div style={{ color: 'var(--text-secondary)', lineHeight: 1.4 }}>
-                {currentMode === 'general_chat' && 'Conversational advisor. Ask anything about placement strategy, timeline, or plan.'}
-                {currentMode === 'interview' && 'One question at a time. Evaluated against rubric depth and adaptive follow-ups.'}
-                {currentMode === 'coding' && 'Monaco sandbox with Python/SQLite execution and error explanation loop.'}
-                {currentMode === 'learn' && '5-step breakdown: diagnosis, analogy, comparison, concrete code, and practice retest.'}
-                {currentMode === 'project_defense' && 'Drill into error boundaries, throughput bottlenecks, and concurrency trade-offs.'}
-                {currentMode === 'retest' && 'Spaced retrieval recall on past misconceptions to verify permanent retention.'}
-              </div>
-            </div>
-
-            {/* Quick Profile Link */}
-            {onNavigate && (
-              <button
-                onClick={() => onNavigate('profile')}
-                className="btn btn-secondary btn-sm"
-                style={{ width: '100%', fontSize: '0.74rem', marginTop: 'auto' }}
-              >
-                <span>Edit Preparation Profile</span>
-                <ArrowRight size={12} />
-              </button>
-            )}
-
           </div>
-        )}
-
-      </div>
+        </div>
+      )}
 
       {/* 5. Unified Attachment Experience Modal */}
       {showAttachmentModal && (

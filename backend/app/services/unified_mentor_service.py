@@ -33,7 +33,21 @@ class UnifiedMentorService:
 
             pending_rev = await db["revision_tasks"].find_one({"user_id": user_id, "status": "pending"})
 
-            if last_event and last_event.get("topic"):
+            if not plan and not last_event:
+                # FIRST-TIME STUDENT: Clean welcome state (no fabricated target company or role)
+                greeting_text = (
+                    "Hi! I'm your PrepPilot mentor. I'll help you prepare for placements based on your goals, skills, projects, and target roles.\n\n"
+                    "Let's start by understanding your preparation. You can upload your resume, share a company skill specification, add your GitHub projects, or simply tell me what role you're aiming for."
+                )
+                suggested_actions = [
+                    "Upload resume",
+                    "Add company requirements",
+                    "Add GitHub projects",
+                    "Set my placement goal"
+                ]
+            elif last_event and last_event.get("topic"):
+                role = plan.get("target_role", "Target Role") if plan else "Target Role"
+                company = f" at {plan.get('target_company')}" if plan and plan.get("target_company") else ""
                 topic = last_event["topic"]
                 outcome = last_event.get("outcome", "practiced")
                 att_type = last_event.get("attempt_type", "independent")
@@ -50,6 +64,8 @@ class UnifiedMentorService:
                     "Solve a coding challenge in the sandbox"
                 ]
             elif plan and plan.get("milestones"):
+                role = plan.get("target_role", "Target Role")
+                company = f" at {plan.get('target_company')}" if plan.get("target_company") else ""
                 first_ms = plan["milestones"][0]
                 ms_title = first_ms.get("title", "Core Fundamentals")
                 greeting_text = (
@@ -64,17 +80,11 @@ class UnifiedMentorService:
                     "Practice live coding"
                 ]
             else:
+                role = plan.get("target_role", "Target Role") if plan else "Target Role"
+                company = f" at {plan.get('target_company')}" if plan and plan.get("target_company") else ""
                 greeting_text = (
                     f"Hello! I am your personal placement mentor for **{role}{company}**.\n\n"
-                    "I personalize your preparation using your **resume**, **company skill specifications**, "
-                    "**GitHub repositories**, and **target goals**.\n\n"
-                    "You can attach documents anytime using the attachment icon (📎), or choose a mode below to start:\n\n"
-                    "• **General Chat:** Ask questions, discuss your target role, or build your prep plan.\n"
-                    "• **Interview:** Practice technical and behavioral questions one by one.\n"
-                    "• **Coding:** Solve Python or SQL challenges in the live sandbox.\n"
-                    "• **Learn:** Master concepts with clear analogies and examples.\n"
-                    "• **Project Defense:** Defend your architecture and implementation decisions.\n"
-                    "• **Retest:** Verify mastery on past weak areas."
+                    "How would you like to prepare today?"
                 )
                 suggested_actions = [
                     "Help me build my preparation plan",
@@ -140,7 +150,7 @@ class UnifiedMentorService:
         recent_submissions = await sub_cursor.to_list()
 
         context_data = {
-            "target_role": plan.get("target_role") if plan else "Software Development Engineer",
+            "target_role": plan.get("target_role") if plan else None,
             "target_company": plan.get("target_company") if plan else None,
             "target_deadline": plan.get("target_deadline") if plan else None,
             "knowledge_gaps": plan.get("knowledge_gaps", []) if plan else [],
@@ -162,7 +172,12 @@ Core Pedagogical Principles:
    - Explain the concept using a concrete everyday analogy and a concrete code example.
    - Provide a progressive hint (nudge -> structural -> walkthrough) rather than immediately revealing full code.
    - Formulate an independent follow-up check question.
-3. Behavior by Active Mode:
+3. Guidelines for Hints & Context Continuity:
+   - If the student asks for a hint (e.g. nudge, directional clue, structure, walkthrough) or clarification on a previously discussed question or code snippet, YOU MUST GROUND YOUR RESPONSE IN THAT EXACT QUESTION FROM RECENT CONVERSATION HISTORY. Never ask what aspect they want to verify when they already asked for a hint on an active problem!
+   - In Nudge mode: Give a subtle directional clue or point out a specific edge-case/invariant without giving away the algorithm or code.
+   - In Structure mode: Break down the problem into 2-3 logical steps or state invariants.
+   - In Walkthrough mode: Explain the algorithm or concept step-by-step with clear reasoning and code snippets.
+4. Behavior by Active Mode:
    - 'general_chat': Conversational advisor. Welcome the student, answer general career/placement queries, guide conversational onboarding (resume, company specs, GitHub, goals), and help construct or refine their preparation plan.
    - 'interview': Technical & behavioral mock interview. Ask ONE focused question at a time. Evaluate student answers against rubric depth.
    - 'coding': Challenge analysis and sandbox guidance. Diagnose failed test cases, analyze Big-O time and space complexity, and offer targeted progressive hints.
@@ -180,13 +195,24 @@ Output Format: Strictly valid JSON with schema:
 }
 """
 
+        # Format recent conversation history (last 8 turns)
+        recent_history_formatted = []
+        for msg in messages[-8:]:
+            role_label = "Student" if msg.get("role") in ["candidate", "user"] else "Mentor"
+            mode_lbl = msg.get("mode", "general_chat")
+            recent_history_formatted.append(f"{role_label} [{mode_lbl}]: {msg.get('content')}")
+        recent_history_text = "\n\n".join(recent_history_formatted) if recent_history_formatted else "No previous messages in session."
+
         user_turn_prompt = f"""
 STUDENT PROFILE & PERSISTENT CONTEXT:
 {json.dumps(context_data, indent=2)}
 
+RECENT CONVERSATION HISTORY (Previous Turns):
+{recent_history_text}
+
 ACTIVE MODE: {active_mode}
 FOCUS TOPIC: {payload.context_topic or 'General Technical'}
-USER MESSAGE:
+LATEST USER MESSAGE:
 {payload.message}
 """
         if payload.code_snippet:
@@ -256,8 +282,37 @@ USER MESSAGE:
     @staticmethod
     def _build_contextual_fallback(payload: MentorChatMessageRequest, context: Dict[str, Any], active_mode: str) -> Dict[str, Any]:
         """Provides rich, high-signal pedagogical fallback when local LLM is offline or timing out."""
-        role = context.get("target_role", "Software Development Engineer")
+        role = context.get("target_role") or "Software Development Engineer"
         topic = payload.context_topic or (context.get("knowledge_gaps", ["Core Fundamentals"])[0] if context.get("knowledge_gaps") else "General Systems")
+        msg_lower = (payload.message or "").lower()
+
+        # Check for progressive hint requests
+        if "nudge" in msg_lower or "directional" in msg_lower:
+            return {
+                "content": f"### 💡 Directional Nudge: **{topic}**\n\n**Key Insight:** Look closely at the data flow and boundary conditions.\n\n• Can you avoid a nested search or repeated work by keeping an auxiliary lookup structure (like a hash map, set, or two pointers)?\n• What happens if the input has duplicate values or an empty collection?\n\nTake a minute to trace this direction before writing code.",
+                "misconception_detected": None,
+                "affirmation": "Asking for a subtle nudge helps you preserve independent problem-solving.",
+                "action_type": None,
+                "suggested_actions": ["I will try using an auxiliary hash map", "Give me a structural step hint", "Let's check edge cases"]
+            }
+
+        if "structure" in msg_lower or "structural" in msg_lower:
+            return {
+                "content": f"### 🧩 Structural Breakdown: **{topic}**\n\nHere is how to structure your approach in 3 clean phases:\n\n1. **Edge Conditions:** Validate empty inputs or base cases early.\n2. **State & Invariants:** Define what each pointer or accumulator maintains during each iteration.\n3. **Post-Processing & Output:** Assemble the result or return early upon meeting the termination condition.\n\nWhich of these 3 steps would you like to flesh out first?",
+                "misconception_detected": None,
+                "affirmation": "Breaking complex problems into structural phases is exactly what interviewers look for.",
+                "action_type": None,
+                "suggested_actions": ["I'll implement the state tracking", "Show me a concrete code example", "Let's test this in the sandbox"]
+            }
+
+        if "walkthrough" in msg_lower or "solution" in msg_lower or "step-by-step" in msg_lower:
+            return {
+                "content": f"### 🎓 Concept Walkthrough: **{topic}**\n\nLet's trace through the recommended mechanism:\n\n• **Core Principle:** Instead of checking every pair ($O(N^2)$), we store seen elements and query their complement in $O(1)$ time.\n• **Trade-off:** We trade a small amount of memory ($O(N)$ auxiliary space) for optimal linear time execution ($O(N)$).\n• **Why It Matters:** In top placement rounds, optimizing time complexity from quadratic to linear is the primary gating criterion.\n\nWould you like to write this in the code sandbox now?",
+                "misconception_detected": None,
+                "affirmation": "Reviewing the complete trade-off prepares you for architectural follow-up questions.",
+                "action_type": "offer_code",
+                "suggested_actions": ["Open Code Sandbox & Practice", "Explain edge case handling", "Give me a follow-up interview question"]
+            }
 
         if active_mode == "project_defense":
             return {
