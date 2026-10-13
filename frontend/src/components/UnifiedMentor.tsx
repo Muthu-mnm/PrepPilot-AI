@@ -773,14 +773,7 @@ Please tailor my interview simulation to reflect these expectations.`;
       >
 
         {/* Central Dominant Conversation Thread */}
-        <div 
-          className="mentor-chat-column"
-          style={{
-            maxWidth: showEmbeddedEditor ? '100%' : '880px',
-            margin: '0 auto',
-            width: '100%'
-          }}
-        >
+        <div className="mentor-chat-column">
           {/* Messages Stream */}
           <div className="mentor-chat-messages">
             {messages.length === 0 ? (
@@ -892,7 +885,9 @@ Please tailor my interview simulation to reflect these expectations.`;
                       display: 'flex',
                       flexDirection: 'column',
                       alignItems: isMentor ? 'flex-start' : 'flex-end',
-                      width: '100%'
+                      width: '100%',
+                      maxWidth: '1040px',
+                      margin: '0 auto'
                     }}
                   >
                     {/* Header Label */}
@@ -1087,174 +1082,177 @@ Please tailor my interview simulation to reflect these expectations.`;
 
           {/* Compact ChatGPT-Style 6-Mode Selector Bar (Above composer) */}
           <div className="mentor-mode-pills-bar">
-            {modeDefinitions.map((mode) => {
-              const Icon = mode.icon;
-              const isActive = currentMode === mode.id;
-              return (
-                <button
-                  key={mode.id}
-                  onClick={() => handleSwitchMode(mode.id)}
-                  className={`mentor-mode-pill ${isActive ? 'active' : ''}`}
-                  title={mode.tagline}
-                >
-                  <Icon size={12} />
-                  <span>{mode.label}</span>
-                </button>
-              );
-            })}
+            <div style={{ maxWidth: '1040px', margin: '0 auto', width: '100%', display: 'flex', alignItems: 'center', gap: '6px', overflowX: 'auto', scrollbarWidth: 'none' }}>
+              {modeDefinitions.map((mode) => {
+                const Icon = mode.icon;
+                const isActive = currentMode === mode.id;
+                return (
+                  <button
+                    key={mode.id}
+                    onClick={() => handleSwitchMode(mode.id)}
+                    className={`mentor-mode-pill ${isActive ? 'active' : ''}`}
+                    title={mode.tagline}
+                  >
+                    <Icon size={12} />
+                    <span>{mode.label}</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           {/* User Input & Attachment Bar */}
           <div className="mentor-composer-area">
-            
-            {/* Attached Items Badges Row */}
-            {attachedItems.length > 0 && (
-              <div className="mentor-attachment-chips-row">
-                {attachedItems.map((att) => (
-                  <div key={att.id} className="mentor-attachment-chip">
-                    <FileText size={12} color="var(--accent-primary)" />
-                    <span>{att.name}</span>
-                    <span 
-                      onClick={() => handleRemoveAttachment(att.id)}
-                      className="chip-remove"
-                      title="Remove attachment"
-                    >
-                      <X size={11} />
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
+            <div style={{ maxWidth: '1040px', margin: '0 auto', width: '100%', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {/* Attached Items Badges Row */}
+              {attachedItems.length > 0 && (
+                <div className="mentor-attachment-chips-row">
+                  {attachedItems.map((att) => (
+                    <div key={att.id} className="mentor-attachment-chip">
+                      <FileText size={12} color="var(--accent-primary)" />
+                      <span>{att.name}</span>
+                      <span 
+                        onClick={() => handleRemoveAttachment(att.id)}
+                        className="chip-remove"
+                        title="Remove attachment"
+                      >
+                        <X size={11} />
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
 
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
-              
-              {/* Attachment Button (Paperclip) */}
-              <button
-                type="button"
-                onClick={() => setShowAttachmentModal(true)}
-                className="btn btn-secondary"
-                style={{
-                  height: '44px',
-                  width: '44px',
-                  padding: 0,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  borderRadius: 'var(--radius-md)'
-                }}
-                title="Attach resume, company job spec, GitHub repo, or interview experiences"
-              >
-                <Paperclip size={18} color="var(--text-secondary)" />
-              </button>
-
-              {/* Contextual Progressive Hints Popover */}
-              <div style={{ position: 'relative' }}>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
+                
+                {/* Attachment Button (Paperclip) */}
                 <button
                   type="button"
-                  onClick={() => setShowHintMenu(!showHintMenu)}
+                  onClick={() => setShowAttachmentModal(true)}
                   className="btn btn-secondary"
                   style={{
                     height: '44px',
-                    padding: '0 11px',
+                    width: '44px',
+                    padding: 0,
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '5px',
-                    borderRadius: 'var(--radius-md)',
-                    fontSize: '0.78rem',
-                    fontWeight: 600,
-                    color: 'var(--text-primary)'
+                    justifyContent: 'center',
+                    borderRadius: 'var(--radius-md)'
                   }}
-                  title="Contextual progressive hints (Nudge, Structure, Walkthrough)"
+                  title="Attach resume, company job spec, GitHub repo, or interview experiences"
                 >
-                  <Lightbulb size={15} color="#D97706" />
-                  <span>Hints</span>
+                  <Paperclip size={18} color="var(--text-secondary)" />
                 </button>
 
-                {showHintMenu && (
-                  <div className="mentor-hints-popover">
-                    <div
-                      className="hint-option"
-                      onClick={() => {
-                        setShowHintMenu(false);
-                        handleRequestProgressiveHint('nudge');
-                      }}
-                    >
-                      <Lightbulb size={14} color="#D97706" style={{ marginTop: '2px', flexShrink: 0 }} />
-                      <div>
-                        <strong>Subtle Nudge</strong>
-                        <span>Directional clue without code</span>
-                      </div>
-                    </div>
+                {/* Contextual Progressive Hints Popover */}
+                <div style={{ position: 'relative' }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowHintMenu(!showHintMenu)}
+                    className="btn btn-secondary"
+                    style={{
+                      height: '44px',
+                      padding: '0 11px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      borderRadius: 'var(--radius-md)',
+                      fontSize: '0.78rem',
+                      fontWeight: 600,
+                      color: 'var(--text-primary)'
+                    }}
+                    title="Contextual progressive hints (Nudge, Structure, Walkthrough)"
+                  >
+                    <Lightbulb size={15} color="#D97706" />
+                    <span>Hints</span>
+                  </button>
 
-                    <div
-                      className="hint-option"
-                      onClick={() => {
-                        setShowHintMenu(false);
-                        handleRequestProgressiveHint('structural');
-                      }}
-                    >
-                      <HelpCircle size={14} color="var(--accent-primary)" style={{ marginTop: '2px', flexShrink: 0 }} />
-                      <div>
-                        <strong>Structural Steps</strong>
-                        <span>Algorithmic structure & steps</span>
+                  {showHintMenu && (
+                    <div className="mentor-hints-popover">
+                      <div
+                        className="hint-option"
+                        onClick={() => {
+                          setShowHintMenu(false);
+                          handleRequestProgressiveHint('nudge');
+                        }}
+                      >
+                        <Lightbulb size={14} color="#D97706" style={{ marginTop: '2px', flexShrink: 0 }} />
+                        <div>
+                          <strong>Subtle Nudge</strong>
+                          <span>Directional clue without code</span>
+                        </div>
                       </div>
-                    </div>
 
-                    <div
-                      className="hint-option"
-                      onClick={() => {
-                        setShowHintMenu(false);
-                        handleRequestProgressiveHint('solution');
-                      }}
-                    >
-                      <GraduationCap size={14} color="var(--success)" style={{ marginTop: '2px', flexShrink: 0 }} />
-                      <div>
-                        <strong>Full Walkthrough</strong>
-                        <span>Step-by-step logic & trade-offs</span>
+                      <div
+                        className="hint-option"
+                        onClick={() => {
+                          setShowHintMenu(false);
+                          handleRequestProgressiveHint('structural');
+                        }}
+                      >
+                        <HelpCircle size={14} color="var(--accent-primary)" style={{ marginTop: '2px', flexShrink: 0 }} />
+                        <div>
+                          <strong>Structural Steps</strong>
+                          <span>Algorithmic structure & steps</span>
+                        </div>
+                      </div>
+
+                      <div
+                        className="hint-option"
+                        onClick={() => {
+                          setShowHintMenu(false);
+                          handleRequestProgressiveHint('solution');
+                        }}
+                      >
+                        <GraduationCap size={14} color="var(--success)" style={{ marginTop: '2px', flexShrink: 0 }} />
+                        <div>
+                          <strong>Full Walkthrough</strong>
+                          <span>Step-by-step logic & trade-offs</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
+
+                <textarea
+                  ref={textareaRef}
+                  value={inputMessage}
+                  onChange={(e) => setInputMessage(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSendMessage();
+                    }
+                  }}
+                  placeholder={currentModeInfo.placeholder}
+                  className="form-control"
+                  style={{
+                    resize: 'none',
+                    minHeight: '44px',
+                    maxHeight: '120px',
+                    flex: 1,
+                    fontSize: '0.88rem',
+                    lineHeight: 1.4,
+                    padding: '10px 12px'
+                  }}
+                  disabled={sending}
+                />
+
+                <button
+                  onClick={() => handleSendMessage()}
+                  disabled={sending || !inputMessage.trim()}
+                  className="btn btn-primary"
+                  style={{ height: '44px', padding: '0 18px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                  title="Send message (Enter)"
+                >
+                  <Send size={15} />
+                  <span>Send</span>
+                </button>
               </div>
 
-              <textarea
-                ref={textareaRef}
-                value={inputMessage}
-                onChange={(e) => setInputMessage(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    handleSendMessage();
-                  }
-                }}
-                placeholder={currentModeInfo.placeholder}
-                className="form-control"
-                style={{
-                  resize: 'none',
-                  minHeight: '44px',
-                  maxHeight: '120px',
-                  flex: 1,
-                  fontSize: '0.88rem',
-                  lineHeight: 1.4,
-                  padding: '10px 12px'
-                }}
-                disabled={sending}
-              />
-
-              <button
-                onClick={() => handleSendMessage()}
-                disabled={sending || !inputMessage.trim()}
-                className="btn btn-primary"
-                style={{ height: '44px', padding: '0 18px', display: 'flex', alignItems: 'center', gap: '6px' }}
-                title="Send message (Enter)"
-              >
-                <Send size={15} />
-                <span>Send</span>
-              </button>
-            </div>
-
-            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-              Press <strong>Enter</strong> to send • <strong>Shift + Enter</strong> for a new line • Mode: <strong>{currentModeInfo.label}</strong>
+              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                Press <strong>Enter</strong> to send • <strong>Shift + Enter</strong> for a new line • Mode: <strong>{currentModeInfo.label}</strong>
+              </div>
             </div>
           </div>
         </div>

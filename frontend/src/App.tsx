@@ -118,7 +118,7 @@ export const App: React.FC = () => {
         </header>
 
         {/* View Router: Only 3 Canonical Destinations */}
-        <div className="content-body">
+        <div className={`content-body ${currentTab === 'mentor' || currentTab === 'home' || currentTab === 'dashboard' ? 'content-body-mentor' : 'content-body-scrollable'}`}>
           {(currentTab === 'mentor' || currentTab === 'home' || currentTab === 'dashboard') && (
             <UnifiedMentor 
               initialMode={mentorInitialMode}
