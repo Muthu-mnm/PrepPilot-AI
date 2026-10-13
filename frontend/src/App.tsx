@@ -205,42 +205,36 @@ export const App: React.FC = () => {
 
       {/* Main Content Area */}
       <main className="app-main">
-        {/* Minimal Content Header */}
-        <header className="top-navbar">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <button
-              onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-              className="navbar-toggle-btn"
-              title={isSidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'}
-              aria-label="Toggle navigation sidebar"
-            >
-              {isSidebarCollapsed ? <PanelLeft size={17} /> : <PanelLeftClose size={17} />}
-            </button>
+        {/* Top Header for Secondary Views (Progress, Profile) */}
+        {currentTab !== 'mentor' && currentTab !== 'home' && currentTab !== 'dashboard' && (
+          <header className="top-navbar">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <button
+                onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+                className="navbar-toggle-btn"
+                title={isSidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'}
+                aria-label="Toggle navigation sidebar"
+              >
+                {isSidebarCollapsed ? <PanelLeft size={17} /> : <PanelLeftClose size={17} />}
+              </button>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                {getTabTitle(currentTab)}
-              </span>
-              {currentTab === 'mentor' && activeSession && (
-                <>
-                  <span style={{ color: 'var(--border-light)' }}>/</span>
-                  <span style={{ fontSize: '0.82rem', color: 'var(--text-primary)', fontWeight: 500, maxWidth: '280px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {activeSession.title}
-                  </span>
-                </>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                  {getTabTitle(currentTab)}
+                </span>
+              </div>
+            </div>
+
+            {/* User & Track Information */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              {user && (
+                <span className="navbar-role-pill">
+                  {user.target_role || 'Target: SDE Placement'}
+                </span>
               )}
             </div>
-          </div>
-
-          {/* User & Track Information */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            {user && (
-              <span className="navbar-role-pill">
-                {user.target_role || 'Target: SDE Placement'}
-              </span>
-            )}
-          </div>
-        </header>
+          </header>
+        )}
 
         {/* View Router */}
         <div className={`content-body ${currentTab === 'mentor' || currentTab === 'home' || currentTab === 'dashboard' ? 'content-body-mentor' : 'content-body-scrollable'}`}>
@@ -248,8 +242,12 @@ export const App: React.FC = () => {
             <UnifiedMentor 
               initialMode={mentorInitialMode}
               activeSessionId={activeSessionId}
+              activeSessionTitle={activeSession?.title}
               onSessionUpdated={handleSessionUpdated}
               onStartNewChat={handleNewChat}
+              isSidebarCollapsed={isSidebarCollapsed}
+              onToggleSidebar={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+              targetRole={user?.target_role}
               onNavigate={(tab) => handleNavigate(tab)}
               onNavigateToSetup={() => handleNavigate('profile')}
               onNavigateToRevisions={() => handleNavigate('progress')}

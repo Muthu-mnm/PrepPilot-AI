@@ -207,7 +207,7 @@ Evaluate the candidate's answer and produce strict JSON conforming to the evalua
                     {"$set": {"current_question_index": new_q_idx}}
                 )
             else:
-                next_turn_content = f"{eval_data.get('feedback')}\n\n🎉 **Interview Complete!** You have answered all target questions in this track. Review your session summary report below."
+                next_turn_content = f"{eval_data.get('feedback')}\n\n**Interview Complete!** You have answered all target questions in this track. Review your session summary report below."
                 turn_type = "question"
                 await db["interview_sessions"].update_one(
                     {"_id": session_id},
@@ -266,7 +266,7 @@ Provide a Level {hint_level} hint for the candidate:
             "turn_number": len(session.get("turns", [])) + 1,
             "role": "interviewer",
             "turn_type": "hint",
-            "content": f"💡 **Hint (Level {hint_level}):**\n{hint_text}",
+            "content": f"**Hint (Level {hint_level}):**\n{hint_text}",
             "evaluation": None,
             "created_at": datetime.utcnow().isoformat()
         }
@@ -316,9 +316,9 @@ Provide a structured Mistake-to-Mastery explanation following the 5-step pedagog
                 prompt=mentor_prompt,
                 system=PromptTemplates.MENTOR_SYSTEM
             )
-            message = f"🧑‍🏫 **Senior Mentor Mode Activated:**\n\n{mentor_text}"
+            message = f"**Senior Mentor Mode Activated:**\n\n{mentor_text}"
         else:
-            message = "🎯 **Switched back to Interviewer Mode.** Whenever you are ready, continue with your answer."
+            message = "**Switched back to Interviewer Mode.** Whenever you are ready, continue with your answer."
 
         turn = {
             "id": str(ObjectId()),

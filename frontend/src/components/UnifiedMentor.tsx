@@ -22,6 +22,8 @@ import {
   FolderGit2, 
   PanelRightClose,
   PanelRightOpen,
+  PanelLeft,
+  PanelLeftClose,
   Calendar,
   Paperclip,
   FileText,
@@ -53,8 +55,12 @@ interface UnifiedMentorProps {
   onNavigate?: (tab: string, mode?: string) => void;
   initialMode?: string;
   activeSessionId?: string;
+  activeSessionTitle?: string;
   onSessionUpdated?: (session: ChatSessionMeta) => void;
   onStartNewChat?: () => void;
+  isSidebarCollapsed?: boolean;
+  onToggleSidebar?: () => void;
+  targetRole?: string;
 }
 
 export const UnifiedMentor: React.FC<UnifiedMentorProps> = ({
@@ -63,8 +69,12 @@ export const UnifiedMentor: React.FC<UnifiedMentorProps> = ({
   onNavigate,
   initialMode = 'general_chat',
   activeSessionId = 'session_default',
+  activeSessionTitle,
   onSessionUpdated,
-  onStartNewChat
+  onStartNewChat,
+  isSidebarCollapsed,
+  onToggleSidebar,
+  targetRole
 }) => {
   // Normalize initial mode
   const normalizeMode = (m?: string): MentorMode => {
@@ -661,7 +671,9 @@ Please tailor my interview simulation to reflect these expectations.`;
 
   // Helper to render markdown formatting (headers, bold, lists, codeblocks)
   const renderMessageContent = (content: string) => {
-    const parts = content.split(/(```[\s\S]*?```)/g);
+    // Sanitize decorative unicode emojis (💡, 🧩, 🎓, 🎯, 🚀, 🤖, etc.) from message headings & body
+    const sanitized = content.replace(/[\u{1F300}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{1F900}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '');
+    const parts = sanitized.split(/(```[\s\S]*?```)/g);
 
     return (
       <div className="mentor-markdown-body">
@@ -776,24 +788,34 @@ Please tailor my interview simulation to reflect these expectations.`;
   return (
     <div className="mentor-workspace-container">
       
-      {/* 1. Header: Placement Identity & Workspace Control      {/* 1. Header: Sleek Minimalist Workspace Toolbar */}
+      {/* 1. Header: Sleek Unified Top Toolbar */}
       <div className="mentor-workspace-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-            {currentModeInfo.label}
+          {onToggleSidebar && (
+            <button
+              onClick={onToggleSidebar}
+              className="navbar-toggle-btn"
+              title={isSidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'}
+              aria-label="Toggle sidebar"
+            >
+              {isSidebarCollapsed ? <PanelLeft size={16} /> : <PanelLeftClose size={16} />}
+            </button>
+          )}
+          <span style={{ fontSize: '0.86rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+            My Mentor
           </span>
-          <span style={{ color: 'var(--border-light)' }}>•</span>
-          <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
-            {currentModeInfo.tagline}
+          <span style={{ color: 'var(--border-light)' }}>/</span>
+          <span style={{ fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-primary)', maxWidth: '340px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {activeSessionTitle || currentModeInfo.label}
           </span>
         </div>
 
         {/* Action Controls */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <button
             onClick={() => setShowEmbeddedEditor(!showEmbeddedEditor)}
             className={`btn btn-sm ${showEmbeddedEditor ? 'btn-primary' : 'btn-secondary'}`}
-            style={{ fontSize: '0.75rem', padding: '4px 9px' }}
+            style={{ fontSize: '0.75rem', padding: '5px 10px', gap: '5px' }}
             title="Toggle coding editor side-by-side"
           >
             <Terminal size={13} />
@@ -803,7 +825,7 @@ Please tailor my interview simulation to reflect these expectations.`;
           <button
             onClick={() => setShowContextPanel(!showContextPanel)}
             className={`btn btn-sm ${showContextPanel ? 'btn-primary' : 'btn-secondary'}`}
-            style={{ fontSize: '0.75rem', padding: '4px 9px', display: 'flex', alignItems: 'center', gap: '5px' }}
+            style={{ fontSize: '0.75rem', padding: '5px 10px', gap: '5px' }}
             title="Toggle active learning context drawer"
           >
             <Layers size={13} />
@@ -811,13 +833,19 @@ Please tailor my interview simulation to reflect these expectations.`;
           </button>
 
           <button
-            onClick={handleResetSession}
+            onClick={onStartNewChat || handleResetSession}
             className="btn btn-secondary btn-sm"
-            style={{ fontSize: '0.75rem', padding: '4px 8px' }}
+            style={{ fontSize: '0.75rem', padding: '5px 8px' }}
             title="Start new conversation"
           >
-            <Plus size={13} />
+            <Plus size={14} />
           </button>
+
+          {targetRole && (
+            <span className="navbar-role-pill">
+              {targetRole}
+            </span>
+          )}
         </div>
       </div>
 

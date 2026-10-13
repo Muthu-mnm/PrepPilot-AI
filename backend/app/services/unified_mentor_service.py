@@ -184,6 +184,9 @@ Core Pedagogical Principles:
    - 'learn': Deliver an intuitive 5-step concept explanation (Diagnosis -> Intuition Analogy -> Right vs Wrong Comparison -> Concrete Code Example -> Practice Retest).
    - 'project_defense': Drill into their actual GitHub project architecture, module boundaries, race conditions, database choices, and scaling tradeoffs. Never invent files or repositories.
    - 'retest': Challenge the student with a fresh, independent question testing a previously misunderstood concept to verify genuine retention.
+5. Formatting & Clean Presentation:
+   - NEVER use decorative emojis (such as 💡, 🧩, 🎓, 🎯, 🚀, 🤖, etc.) in headings, titles, bullet points, or anywhere in your text. They look like generic AI templates.
+   - Use clean, professional Markdown with crisp technical headings (e.g. '### Directional Nudge: Topic' instead of '### 💡 Directional Nudge: Topic').
 
 Output Format: Strictly valid JSON with schema:
 {
@@ -289,7 +292,7 @@ LATEST USER MESSAGE:
         # Check for progressive hint requests
         if "nudge" in msg_lower or "directional" in msg_lower:
             return {
-                "content": f"### 💡 Directional Nudge: **{topic}**\n\n**Key Insight:** Look closely at the data flow and boundary conditions.\n\n• Can you avoid a nested search or repeated work by keeping an auxiliary lookup structure (like a hash map, set, or two pointers)?\n• What happens if the input has duplicate values or an empty collection?\n\nTake a minute to trace this direction before writing code.",
+                "content": f"### Directional Nudge: **{topic}**\n\n**Key Insight:** Look closely at the data flow and boundary conditions.\n\n• Can you avoid a nested search or repeated work by keeping an auxiliary lookup structure (like a hash map, set, or two pointers)?\n• What happens if the input has duplicate values or an empty collection?\n\nTake a minute to trace this direction before writing code.",
                 "misconception_detected": None,
                 "affirmation": "Asking for a subtle nudge helps you preserve independent problem-solving.",
                 "action_type": None,
@@ -298,7 +301,7 @@ LATEST USER MESSAGE:
 
         if "structure" in msg_lower or "structural" in msg_lower:
             return {
-                "content": f"### 🧩 Structural Breakdown: **{topic}**\n\nHere is how to structure your approach in 3 clean phases:\n\n1. **Edge Conditions:** Validate empty inputs or base cases early.\n2. **State & Invariants:** Define what each pointer or accumulator maintains during each iteration.\n3. **Post-Processing & Output:** Assemble the result or return early upon meeting the termination condition.\n\nWhich of these 3 steps would you like to flesh out first?",
+                "content": f"### Structural Breakdown: **{topic}**\n\nHere is how to structure your approach in 3 clean phases:\n\n1. **Edge Conditions:** Validate empty inputs or base cases early.\n2. **State & Invariants:** Define what each pointer or accumulator maintains during each iteration.\n3. **Post-Processing & Output:** Assemble the result or return early upon meeting the termination condition.\n\nWhich of these 3 steps would you like to flesh out first?",
                 "misconception_detected": None,
                 "affirmation": "Breaking complex problems into structural phases is exactly what interviewers look for.",
                 "action_type": None,
@@ -307,7 +310,7 @@ LATEST USER MESSAGE:
 
         if "walkthrough" in msg_lower or "solution" in msg_lower or "step-by-step" in msg_lower:
             return {
-                "content": f"### 🎓 Concept Walkthrough: **{topic}**\n\nLet's trace through the recommended mechanism:\n\n• **Core Principle:** Instead of checking every pair ($O(N^2)$), we store seen elements and query their complement in $O(1)$ time.\n• **Trade-off:** We trade a small amount of memory ($O(N)$ auxiliary space) for optimal linear time execution ($O(N)$).\n• **Why It Matters:** In top placement rounds, optimizing time complexity from quadratic to linear is the primary gating criterion.\n\nWould you like to write this in the code sandbox now?",
+                "content": f"### Concept Walkthrough: **{topic}**\n\nLet's trace through the recommended mechanism:\n\n• **Core Principle:** Instead of checking every pair ($O(N^2)$), we store seen elements and query their complement in $O(1)$ time.\n• **Trade-off:** We trade a small amount of memory ($O(N)$ auxiliary space) for optimal linear time execution ($O(N)$).\n• **Why It Matters:** In top placement rounds, optimizing time complexity from quadratic to linear is the primary gating criterion.\n\nWould you like to write this in the code sandbox now?",
                 "misconception_detected": None,
                 "affirmation": "Reviewing the complete trade-off prepares you for architectural follow-up questions.",
                 "action_type": "offer_code",
