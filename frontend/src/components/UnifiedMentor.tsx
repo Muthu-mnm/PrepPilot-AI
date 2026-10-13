@@ -27,7 +27,10 @@ import {
   FileText,
   Building2,
   Upload,
-  Globe
+  Globe,
+  ArrowUp,
+  Plus,
+  Layers
 } from 'lucide-react';
 import { 
   MentorChatMessage, 
@@ -39,7 +42,8 @@ import {
   ResumeExtractedData,
   CompanyDocExtractedData,
   GitHubRepoAnalysis,
-  CandidateExperienceInput
+  CandidateExperienceInput,
+  ChatSessionMeta
 } from '../types';
 import { api } from '../services/api';
 
@@ -48,13 +52,19 @@ interface UnifiedMentorProps {
   onNavigateToRevisions?: () => void;
   onNavigate?: (tab: string, mode?: string) => void;
   initialMode?: string;
+  activeSessionId?: string;
+  onSessionUpdated?: (session: ChatSessionMeta) => void;
+  onStartNewChat?: () => void;
 }
 
 export const UnifiedMentor: React.FC<UnifiedMentorProps> = ({
   onNavigateToSetup,
   onNavigateToRevisions,
   onNavigate,
-  initialMode = 'general_chat'
+  initialMode = 'general_chat',
+  activeSessionId = 'session_default',
+  onSessionUpdated,
+  onStartNewChat
 }) => {
   // Normalize initial mode
   const normalizeMode = (m?: string): MentorMode => {
@@ -168,18 +178,23 @@ export const UnifiedMentor: React.FC<UnifiedMentorProps> = ({
   ];
 
   const currentModeInfo = modeDefinitions.find((m) => m.id === currentMode) || modeDefinitions[0];
+  const [copiedTurnIdx, setCopiedTurnIdx] = useState<number | null>(null);
 
-  // Load conversation, preparation plan, and coding question bank
+  const handleCopyMessage = (content: string, index: number) => {
+    navigator.clipboard.writeText(content);
+    setCopiedTurnIdx(index);
+    setTimeout(() => setCopiedTurnIdx(null), 2000);
+  };
+
+  // Load preparation plan and coding question bank
   useEffect(() => {
     const fetchInitialData = async () => {
       try {
-        const [msgs, planData, codingQuestions] = await Promise.all([
-          api.getMentorMessages().catch(() => []),
+        const [planData, codingQuestions] = await Promise.all([
           api.getCurrentPlan().catch(() => null),
           api.getCodingQuestions().catch(() => [])
         ]);
 
-        setMessages(msgs || []);
         setPlan(planData);
         if (planData && planData.knowledge_gaps && planData.knowledge_gaps.length > 0) {
           setSelectedTopic(planData.knowledge_gaps[0]);
@@ -201,12 +216,74 @@ export const UnifiedMentor: React.FC<UnifiedMentorProps> = ({
     fetchInitialData();
   }, []);
 
+  // Synchronize messages for the current activeSessionId
+  useEffect(() => {
+    if (!activeSessionId) return;
+    const stored = localStorage.getItem(`preppilot_msgs_${activeSessionId}`);
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setMessages(parsed);
+          return;
+        }
+      } catch (e) {
+        console.warn('Error reading stored messages for session', activeSessionId, e);
+      }
+    }
+
+    // Default session fetches from API if localStorage empty
+    if (activeSessionId === 'session_default') {
+      api.getMentorMessages()
+        .then((msgs) => {
+          setMessages(msgs || []);
+          if (msgs && msgs.length > 0) {
+            localStorage.setItem(`preppilot_msgs_${activeSessionId}`, JSON.stringify(msgs));
+          }
+        })
+        .catch(() => {});
+    } else {
+      setMessages([]);
+    }
+  }, [activeSessionId]);
+
+  // Persist messages & inform parent of session updates
+  useEffect(() => {
+    if (!activeSessionId || loading) return;
+    if (messages.length > 0) {
+      localStorage.setItem(`preppilot_msgs_${activeSessionId}`, JSON.stringify(messages));
+    }
+
+    if (onSessionUpdated) {
+      let derivedTitle = 'New conversation';
+      const firstCandidateMsg = messages.find((m) => m.role === 'candidate');
+      if (firstCandidateMsg) {
+        derivedTitle = firstCandidateMsg.content.slice(0, 36).trim();
+        if (firstCandidateMsg.content.length > 36) derivedTitle += '...';
+      } else if (plan?.target_role) {
+        derivedTitle = `${plan.target_role} Mentorship`;
+      } else if (currentMode !== 'general_chat') {
+        derivedTitle = `${currentModeInfo.label} Session`;
+      }
+
+      onSessionUpdated({
+        id: activeSessionId,
+        title: derivedTitle,
+        lastUpdated: new Date().toISOString(),
+        mode: currentMode,
+        messagesCount: messages.length,
+        preview: messages[messages.length - 1]?.content.slice(0, 60)
+      });
+    }
+  }, [messages, activeSessionId, currentMode]);
+
   // When mode changes to coding, auto-open editor
   useEffect(() => {
     if (currentMode === 'coding') {
       setShowEmbeddedEditor(true);
     }
   }, [currentMode]);
+
 
   // Scroll to bottom on new messages
   useEffect(() => {
@@ -290,10 +367,17 @@ export const UnifiedMentor: React.FC<UnifiedMentorProps> = ({
     if (!window.confirm('Reset this conversation? This will clear active turns and provide a fresh greeting grounded in your profile.')) {
       return;
     }
+    if (onStartNewChat) {
+      onStartNewChat();
+      return;
+    }
     setLoading(true);
     try {
       const freshMessages = await api.resetMentorSession();
       setMessages(freshMessages || []);
+      if (activeSessionId) {
+        localStorage.setItem(`preppilot_msgs_${activeSessionId}`, JSON.stringify(freshMessages || []));
+      }
       setExecutionResult(null);
     } catch (err) {
       console.error('Error resetting mentor session:', err);
@@ -692,39 +776,16 @@ Please tailor my interview simulation to reflect these expectations.`;
   return (
     <div className="mentor-workspace-container">
       
-      {/* 1. Header: Placement Identity & Workspace Controls */}
+      {/* 1. Header: Placement Identity & Workspace Control      {/* 1. Header: Sleek Minimalist Workspace Toolbar */}
       <div className="mentor-workspace-header">
-        
-        {/* Mentor Title & Active Target Role */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{
-            width: '36px',
-            height: '36px',
-            borderRadius: 'var(--radius-md)',
-            background: 'var(--accent-primary)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: 'white',
-            boxShadow: '0 2px 8px rgba(79, 70, 229, 0.25)'
-          }}>
-            <Sparkles size={18} />
-          </div>
-
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <h1 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
-                My Placement Mentor
-              </h1>
-              <span className="badge badge-verified" style={{ fontSize: '0.68rem', padding: '2px 8px' }}>
-                Active Guidance
-              </span>
-            </div>
-            <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '1px' }}>
-              <span>Target: <strong>{plan?.target_role || 'Software Development Engineer'}</strong></span>
-              {plan?.target_company && <span> at <strong>{plan.target_company}</strong></span>}
-            </div>
-          </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+            {currentModeInfo.label}
+          </span>
+          <span style={{ color: 'var(--border-light)' }}>•</span>
+          <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+            {currentModeInfo.tagline}
+          </span>
         </div>
 
         {/* Action Controls */}
@@ -732,30 +793,30 @@ Please tailor my interview simulation to reflect these expectations.`;
           <button
             onClick={() => setShowEmbeddedEditor(!showEmbeddedEditor)}
             className={`btn btn-sm ${showEmbeddedEditor ? 'btn-primary' : 'btn-secondary'}`}
-            style={{ fontSize: '0.76rem', padding: '4px 10px' }}
+            style={{ fontSize: '0.75rem', padding: '4px 9px' }}
             title="Toggle coding editor side-by-side"
           >
-            <Code2 size={13} />
+            <Terminal size={13} />
             <span>{showEmbeddedEditor ? 'Hide Code' : 'Code Sandbox'}</span>
           </button>
 
           <button
             onClick={() => setShowContextPanel(!showContextPanel)}
             className={`btn btn-sm ${showContextPanel ? 'btn-primary' : 'btn-secondary'}`}
-            style={{ fontSize: '0.76rem', padding: '4px 10px', display: 'flex', alignItems: 'center', gap: '5px' }}
+            style={{ fontSize: '0.75rem', padding: '4px 9px', display: 'flex', alignItems: 'center', gap: '5px' }}
             title="Toggle active learning context drawer"
           >
-            <Target size={13} />
+            <Layers size={13} />
             <span>Context</span>
           </button>
 
           <button
             onClick={handleResetSession}
             className="btn btn-secondary btn-sm"
-            style={{ fontSize: '0.76rem', padding: '4px 8px' }}
-            title="Reset conversation"
+            style={{ fontSize: '0.75rem', padding: '4px 8px' }}
+            title="Start new conversation"
           >
-            <RefreshCw size={13} />
+            <Plus size={13} />
           </button>
         </div>
       </div>
@@ -766,7 +827,7 @@ Please tailor my interview simulation to reflect these expectations.`;
         style={{
           display: 'grid',
           gridTemplateColumns: showEmbeddedEditor ? '1fr 1fr' : '1fr',
-          gap: '16px',
+          gap: '0',
           height: '100%',
           position: 'relative'
         }}
@@ -776,334 +837,251 @@ Please tailor my interview simulation to reflect these expectations.`;
         <div className="mentor-chat-column">
           {/* Messages Stream */}
           <div className="mentor-chat-messages">
-            {messages.length === 0 ? (
-              /* Clean ChatGPT-Style Welcome State */
-              <div className="mentor-welcome-hero">
-                <div className="mentor-welcome-avatar">
-                  <Sparkles size={24} />
+            <div className="messages-inner-canvas">
+              {messages.length === 0 ? (
+                /* Clean ChatGPT-Style Welcome State */
+                <div className="mentor-welcome-hero">
+                  <div className="welcome-badge-icon">
+                    <Sparkles size={20} />
+                  </div>
+
+                  <h2 className="welcome-hero-heading">
+                    Your interview mentor, built around you.
+                  </h2>
+
+                  <p className="welcome-hero-text">
+                    Tell me what you're preparing for. We'll build on your experience, practice deliberately, and revisit what needs work.
+                  </p>
+
+                  {/* Working Action Suggestion Chips */}
+                  <div className="welcome-actions-row">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveAttachTab('resume');
+                        setShowAttachmentModal(true);
+                      }}
+                      className="welcome-action-chip"
+                      title="Upload resume in PDF or DOCX"
+                    >
+                      <Target size={14} color="var(--accent-primary)" />
+                      <span>Prepare for a target role</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleSwitchMode('coding');
+                        setShowEmbeddedEditor(true);
+                        handleSendMessage("I'd like to practice a live coding challenge in the sandbox. Guide me through the optimal approach.");
+                      }}
+                      className="welcome-action-chip"
+                      title="Open live coding problem in sandbox"
+                    >
+                      <Terminal size={14} color="var(--accent-primary)" />
+                      <span>Practice a coding problem</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleSwitchMode('learn');
+                        setInputMessage('Could you explain the concept of: ');
+                        if (textareaRef.current) {
+                          textareaRef.current.focus();
+                        }
+                      }}
+                      className="welcome-action-chip"
+                      title="Explain a concept with 5-step intuitive breakdown"
+                    >
+                      <Lightbulb size={14} color="var(--accent-primary)" />
+                      <span>Explain a concept I'm struggling with</span>
+                    </button>
+                  </div>
                 </div>
+              ) : (
+                /* Ongoing Conversation Turns */
+                messages.map((msg, idx) => {
+                  const isMentor = msg.role === 'mentor';
+                  return isMentor ? (
+                    <div key={msg.id || idx} className="turn-mentor-wrap">
+                      <div className="turn-mentor-header">
+                        <div className="turn-mentor-avatar">
+                          <Sparkles size={13} />
+                        </div>
+                        <span className="turn-mentor-title">Mentor</span>
+                        {msg.mode && (
+                          <span className="turn-mentor-mode-tag">
+                            {msg.mode.replace('_', ' ')}
+                          </span>
+                        )}
+                      </div>
 
-                <h2 className="mentor-welcome-title">
-                  {plan?.target_role ? `Welcome back to PrepPilot` : `Hi! I'm your PrepPilot mentor.`}
-                </h2>
-
-                <p className="mentor-welcome-desc">
-                  {plan?.target_role ? (
-                    <>
-                      I am ready to help you prepare for <strong>{plan.target_role}</strong>
-                      {plan.target_company && <> at <strong>{plan.target_company}</strong></>}.
-                      <br /><br />
-                      How would you like to make progress today?
-                    </>
-                  ) : (
-                    <>
-                      I'll help you prepare for placements based on your goals, skills, projects, and target roles.
-                      <br /><br />
-                      Let's start by understanding your preparation. You can upload your resume, share a company skill specification, add your GitHub projects, or simply tell me what role you're aiming for.
-                    </>
-                  )}
-                </p>
-
-                {/* Working Action Suggestion Chips */}
-                <div className="mentor-suggestion-chips">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActiveAttachTab('resume');
-                      setShowAttachmentModal(true);
-                    }}
-                    className="mentor-chip"
-                    title="Upload resume in PDF or DOCX"
-                  >
-                    <FileText size={14} color="var(--accent-primary)" />
-                    <span>Upload resume</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActiveAttachTab('company');
-                      setShowAttachmentModal(true);
-                    }}
-                    className="mentor-chip"
-                    title="Upload job specs or paste JD requirements"
-                  >
-                    <Building2 size={14} color="var(--accent-primary)" />
-                    <span>Add company requirements</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActiveAttachTab('github');
-                      setShowAttachmentModal(true);
-                    }}
-                    className="mentor-chip"
-                    title="Connect GitHub repository URL"
-                  >
-                    <FolderGit2 size={14} color="var(--accent-primary)" />
-                    <span>Add GitHub projects</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setInputMessage('My placement goal is: ');
-                      if (textareaRef.current) {
-                        textareaRef.current.focus();
-                      }
-                    }}
-                    className="mentor-chip"
-                    title="Set target role and placement timeline"
-                  >
-                    <Target size={14} color="var(--accent-primary)" />
-                    <span>Set my placement goal</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      handleSwitchMode('interview');
-                      handleSendMessage("Let's start a mock interview round for my target role.");
-                    }}
-                    className="mentor-chip"
-                    title="Start a 1-on-1 mock interview drill"
-                  >
-                    <Sparkles size={14} color="var(--accent-primary)" />
-                    <span>Start mock interview</span>
-                  </button>
-                </div>
-              </div>
-            ) : (
-              /* Ongoing Conversation Turns */
-              messages.map((msg, idx) => {
-                const isMentor = msg.role === 'mentor';
-                return (
-                  <div
-                    key={msg.id || idx}
-                    style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: isMentor ? 'flex-start' : 'flex-end',
-                      width: '100%',
-                      maxWidth: '1040px',
-                      margin: '0 auto'
-                    }}
-                  >
-                    {/* Header Label */}
-                    <div style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      marginBottom: '4px',
-                      fontSize: '0.72rem',
-                      color: 'var(--text-muted)'
-                    }}>
-                      {isMentor ? (
-                        <>
-                          <Sparkles size={11} color="var(--accent-primary)" />
-                          <strong style={{ color: 'var(--text-primary)' }}>Senior Placement Mentor</strong>
-                          {msg.mode && (
-                            <span style={{ color: 'var(--accent-primary)', textTransform: 'capitalize' }}>
-                              • {msg.mode.replace('_', ' ')}
-                            </span>
-                          )}
-                        </>
-                      ) : (
-                        <span>Candidate Turn</span>
-                      )}
-                    </div>
-
-                    {/* Chat Bubble */}
-                    <div className={isMentor ? 'mentor-bubble-mentor' : 'mentor-bubble-candidate'}>
-                      
-                      {/* Diagnosed Misconception Callout Badge */}
-                      {isMentor && msg.misconception_detected && (
-                        <div style={{
-                          padding: '8px 12px',
-                          background: 'var(--error-bg)',
-                          border: '1px solid var(--error-border)',
-                          borderRadius: 'var(--radius-md)',
-                          marginBottom: '10px',
-                          fontSize: '0.82rem',
-                          color: 'var(--error)'
-                        }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700, marginBottom: '2px' }}>
-                            <AlertCircle size={14} />
-                            <span>Diagnosed Misconception:</span>
+                      <div className="turn-mentor-content">
+                        {/* Diagnosed Misconception Callout Badge */}
+                        {msg.misconception_detected && (
+                          <div className="callout-misconception">
+                            <AlertCircle size={14} style={{ flexShrink: 0, marginTop: '2px' }} />
+                            <div>
+                              <strong>Diagnosed Misconception: </strong>
+                              <span>{msg.misconception_detected}</span>
+                            </div>
                           </div>
-                          <div>{msg.misconception_detected}</div>
-                        </div>
-                      )}
+                        )}
 
-                      {/* Acknowledged Intuition Callout Badge */}
-                      {isMentor && msg.affirmation && (
-                        <div style={{
-                          padding: '8px 12px',
-                          background: 'var(--success-bg)',
-                          border: '1px solid var(--success-border)',
-                          borderRadius: 'var(--radius-md)',
-                          marginBottom: '10px',
-                          fontSize: '0.82rem',
-                          color: 'var(--success)'
-                        }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700, marginBottom: '2px' }}>
-                            <CheckCircle2 size={14} />
-                            <span>Acknowledged Reasoning:</span>
+                        {/* Acknowledged Intuition Callout Badge */}
+                        {msg.affirmation && (
+                          <div className="callout-affirmation">
+                            <CheckCircle2 size={14} style={{ flexShrink: 0, marginTop: '2px' }} />
+                            <div>
+                              <strong>Acknowledged Reasoning: </strong>
+                              <span>{msg.affirmation}</span>
+                            </div>
                           </div>
-                          <div>{msg.affirmation}</div>
-                        </div>
-                      )}
+                        )}
 
-                      {/* Main Message Content */}
-                      {isMentor ? (
-                        renderMessageContent(msg.content)
-                      ) : (
-                        <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>
-                          {msg.content}
-                        </div>
-                      )}
+                        {renderMessageContent(msg.content)}
+                      </div>
 
-                      {/* Contextual Action Callout Buttons */}
-                      {isMentor && msg.action_type === 'offer_code' && (
-                        <div style={{ marginTop: '10px', paddingTop: '8px', borderTop: '1px solid var(--border-light)' }}>
+                      {/* Mentor Message Footer Actions */}
+                      <div className="turn-mentor-footer">
+                        <button
+                          onClick={() => handleCopyMessage(msg.content, idx)}
+                          className="turn-action-btn"
+                          title="Copy response to clipboard"
+                        >
+                          {copiedTurnIdx === idx ? <Check size={12} color="var(--success)" /> : <Copy size={12} />}
+                          <span>{copiedTurnIdx === idx ? 'Copied' : 'Copy'}</span>
+                        </button>
+
+                        {msg.action_type === 'offer_code' && (
                           <button
                             onClick={() => {
                               setCurrentMode('coding');
                               setShowEmbeddedEditor(true);
                             }}
-                            className="btn btn-secondary btn-sm"
-                            style={{ background: 'var(--bg-main)', fontSize: '0.78rem' }}
+                            className="turn-action-btn action-highlight"
                           >
-                            <Terminal size={13} color="var(--accent-primary)" />
-                            <span>Open Code Sandbox & Practice</span>
-                            <ArrowRight size={12} />
+                            <Terminal size={12} />
+                            <span>Open Code Sandbox</span>
                           </button>
-                        </div>
-                      )}
+                        )}
 
-                      {isMentor && msg.action_type === 'schedule_revision' && onNavigate && (
-                        <div style={{ marginTop: '10px', paddingTop: '8px', borderTop: '1px solid var(--border-light)' }}>
-                          <button
-                            onClick={() => onNavigate('progress')}
-                            className="btn btn-secondary btn-sm"
-                            style={{ background: 'var(--bg-main)', fontSize: '0.78rem' }}
-                          >
-                            <RotateCcw size={13} color="var(--warning)" />
-                            <span>Review in Retention Queue</span>
-                            <ArrowRight size={12} />
-                          </button>
-                        </div>
-                      )}
-
-                      {isMentor && msg.action_type === 'retest_question' && (
-                        <div style={{ marginTop: '10px', paddingTop: '8px', borderTop: '1px solid var(--border-light)' }}>
+                        {msg.action_type === 'retest_question' && (
                           <button
                             onClick={() => {
                               setCurrentMode('retest');
                               handleSendMessage('Give me an independent retest question on this concept.');
                             }}
-                            className="btn btn-secondary btn-sm"
-                            style={{ background: 'var(--bg-main)', fontSize: '0.78rem' }}
+                            className="turn-action-btn action-highlight"
                           >
-                            <RotateCcw size={13} color="var(--accent-primary)" />
-                            <span>Test Independently Now</span>
-                            <ArrowRight size={12} />
+                            <RotateCcw size={12} />
+                            <span>Retest Now</span>
                           </button>
+                        )}
+
+                        {msg.action_type === 'schedule_revision' && onNavigate && (
+                          <button
+                            onClick={() => onNavigate('progress')}
+                            className="turn-action-btn"
+                          >
+                            <RotateCcw size={12} />
+                            <span>Review in Retention Queue</span>
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Suggested Response Chips */}
+                      {idx === messages.length - 1 && msg.suggested_actions && msg.suggested_actions.length > 0 && (
+                        <div className="turn-suggested-actions">
+                          {msg.suggested_actions.map((actionText, sIdx) => (
+                            <button
+                              key={sIdx}
+                              onClick={() => handleSendMessage(actionText)}
+                              disabled={sending}
+                              className="suggested-reply-chip"
+                            >
+                              <span>{actionText}</span>
+                            </button>
+                          ))}
                         </div>
                       )}
                     </div>
-
-                    {/* Suggested Response Chips (Displayed only on the latest turn) */}
-                    {isMentor && idx === messages.length - 1 && msg.suggested_actions && msg.suggested_actions.length > 0 && (
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '6px', maxWidth: '88%' }}>
-                        {msg.suggested_actions.map((actionText, sIdx) => (
-                          <button
-                            key={sIdx}
-                            onClick={() => handleSendMessage(actionText)}
-                            disabled={sending}
-                            className="btn btn-secondary btn-sm"
-                            style={{
-                              fontSize: '0.75rem',
-                              padding: '3px 10px',
-                              borderRadius: 'var(--radius-full)',
-                              background: 'var(--bg-surface)',
-                              borderColor: 'var(--accent-border)',
-                              color: 'var(--accent-primary)'
-                            }}
-                          >
-                            <span>{actionText}</span>
-                          </button>
-                        ))}
+                  ) : (
+                    <div key={msg.id || idx} className="turn-candidate-wrap">
+                      <div className="turn-candidate-bubble">
+                        {msg.content}
                       </div>
-                    )}
-                  </div>
-                );
-              })
-            )}
+                    </div>
+                  );
+                })
+              )}
 
-            {/* Loading Indicator */}
-            {sending && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-secondary)', fontSize: '0.82rem', padding: '6px 4px' }}>
-                <div style={{ width: '14px', height: '14px', border: '2px solid var(--accent-light)', borderTopColor: 'var(--accent-primary)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-                <span>Placement Mentor is evaluating your turn and formulating guidance...</span>
-              </div>
-            )}
-
-            {/* Error Banner with Retry */}
-            {sendError && (
-              <div style={{
-                padding: '10px 14px',
-                background: 'var(--error-bg)',
-                border: '1px solid var(--error-border)',
-                borderRadius: 'var(--radius-md)',
-                color: 'var(--error)',
-                fontSize: '0.82rem',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <AlertCircle size={15} />
-                  <span>{sendError}</span>
+              {/* Loading Indicator */}
+              {sending && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-secondary)', fontSize: '0.82rem', padding: '6px 4px', paddingLeft: '32px' }}>
+                  <div style={{ width: '13px', height: '13px', border: '2px solid var(--accent-light)', borderTopColor: 'var(--accent-primary)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+                  <span>Mentor is formulating guidance...</span>
                 </div>
-                <button
-                  onClick={() => handleSendMessage()}
-                  className="btn btn-secondary btn-sm"
-                  style={{ fontSize: '0.72rem', padding: '2px 8px' }}
-                >
-                  Retry
-                </button>
-              </div>
-            )}
+              )}
 
-            <div ref={messagesEndRef} />
-          </div>
-
-          {/* Compact ChatGPT-Style 6-Mode Selector Bar (Above composer) */}
-          <div className="mentor-mode-pills-bar">
-            <div style={{ maxWidth: '1040px', margin: '0 auto', width: '100%', display: 'flex', alignItems: 'center', gap: '6px', overflowX: 'auto', scrollbarWidth: 'none' }}>
-              {modeDefinitions.map((mode) => {
-                const Icon = mode.icon;
-                const isActive = currentMode === mode.id;
-                return (
+              {/* Error Banner with Retry */}
+              {sendError && (
+                <div style={{
+                  padding: '10px 14px',
+                  background: 'var(--error-bg)',
+                  border: '1px solid var(--error-border)',
+                  borderRadius: 'var(--radius-md)',
+                  color: 'var(--error)',
+                  fontSize: '0.82rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  marginLeft: '32px'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <AlertCircle size={15} />
+                    <span>{sendError}</span>
+                  </div>
                   <button
-                    key={mode.id}
-                    onClick={() => handleSwitchMode(mode.id)}
-                    className={`mentor-mode-pill ${isActive ? 'active' : ''}`}
-                    title={mode.tagline}
+                    onClick={() => handleSendMessage()}
+                    className="btn btn-secondary btn-sm"
+                    style={{ fontSize: '0.72rem', padding: '2px 8px' }}
                   >
-                    <Icon size={12} />
-                    <span>{mode.label}</span>
+                    Retry
                   </button>
-                );
-              })}
+                </div>
+              )}
+
+              <div ref={messagesEndRef} />
             </div>
           </div>
 
           {/* User Input & Attachment Bar */}
-          <div className="mentor-composer-area">
-            <div style={{ maxWidth: '1040px', margin: '0 auto', width: '100%', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <div className="mentor-composer-container">
+            <div className="composer-canvas-limit">
+
+              {/* Mode Selector Segmented Control */}
+              <div className="mentor-mode-segmented-control" role="tablist">
+                {modeDefinitions.map((mode) => {
+                  const Icon = mode.icon;
+                  const isActive = currentMode === mode.id;
+                  return (
+                    <button
+                      key={mode.id}
+                      role="tab"
+                      aria-selected={isActive}
+                      onClick={() => handleSwitchMode(mode.id)}
+                      className={`mentor-mode-seg-btn ${isActive ? 'active' : ''}`}
+                      title={mode.tagline}
+                    >
+                      <Icon size={12} />
+                      <span>{mode.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
               {/* Attached Items Badges Row */}
               {attachedItems.length > 0 && (
                 <div className="mentor-attachment-chips-row">
@@ -1123,101 +1101,16 @@ Please tailor my interview simulation to reflect these expectations.`;
                 </div>
               )}
 
-              <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
-                
-                {/* Attachment Button (Paperclip) */}
-                <button
-                  type="button"
-                  onClick={() => setShowAttachmentModal(true)}
-                  className="btn btn-secondary"
-                  style={{
-                    height: '44px',
-                    width: '44px',
-                    padding: 0,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    borderRadius: 'var(--radius-md)'
-                  }}
-                  title="Attach resume, company job spec, GitHub repo, or interview experiences"
-                >
-                  <Paperclip size={18} color="var(--text-secondary)" />
-                </button>
-
-                {/* Contextual Progressive Hints Popover */}
-                <div style={{ position: 'relative' }}>
-                  <button
-                    type="button"
-                    onClick={() => setShowHintMenu(!showHintMenu)}
-                    className="btn btn-secondary"
-                    style={{
-                      height: '44px',
-                      padding: '0 11px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '5px',
-                      borderRadius: 'var(--radius-md)',
-                      fontSize: '0.78rem',
-                      fontWeight: 600,
-                      color: 'var(--text-primary)'
-                    }}
-                    title="Contextual progressive hints (Nudge, Structure, Walkthrough)"
-                  >
-                    <Lightbulb size={15} color="#D97706" />
-                    <span>Hints</span>
-                  </button>
-
-                  {showHintMenu && (
-                    <div className="mentor-hints-popover">
-                      <div
-                        className="hint-option"
-                        onClick={() => {
-                          setShowHintMenu(false);
-                          handleRequestProgressiveHint('nudge');
-                        }}
-                      >
-                        <Lightbulb size={14} color="#D97706" style={{ marginTop: '2px', flexShrink: 0 }} />
-                        <div>
-                          <strong>Subtle Nudge</strong>
-                          <span>Directional clue without code</span>
-                        </div>
-                      </div>
-
-                      <div
-                        className="hint-option"
-                        onClick={() => {
-                          setShowHintMenu(false);
-                          handleRequestProgressiveHint('structural');
-                        }}
-                      >
-                        <HelpCircle size={14} color="var(--accent-primary)" style={{ marginTop: '2px', flexShrink: 0 }} />
-                        <div>
-                          <strong>Structural Steps</strong>
-                          <span>Algorithmic structure & steps</span>
-                        </div>
-                      </div>
-
-                      <div
-                        className="hint-option"
-                        onClick={() => {
-                          setShowHintMenu(false);
-                          handleRequestProgressiveHint('solution');
-                        }}
-                      >
-                        <GraduationCap size={14} color="var(--success)" style={{ marginTop: '2px', flexShrink: 0 }} />
-                        <div>
-                          <strong>Full Walkthrough</strong>
-                          <span>Step-by-step logic & trade-offs</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
+              {/* Composer Box */}
+              <div className="composer-input-card">
                 <textarea
                   ref={textareaRef}
                   value={inputMessage}
-                  onChange={(e) => setInputMessage(e.target.value)}
+                  onChange={(e) => {
+                    setInputMessage(e.target.value);
+                    e.target.style.height = 'auto';
+                    e.target.style.height = `${Math.min(e.target.scrollHeight, 140)}px`;
+                  }}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {
                       e.preventDefault();
@@ -1225,33 +1118,98 @@ Please tailor my interview simulation to reflect these expectations.`;
                     }
                   }}
                   placeholder={currentModeInfo.placeholder}
-                  className="form-control"
-                  style={{
-                    resize: 'none',
-                    minHeight: '44px',
-                    maxHeight: '120px',
-                    flex: 1,
-                    fontSize: '0.88rem',
-                    lineHeight: 1.4,
-                    padding: '10px 12px'
-                  }}
+                  className="composer-textarea"
+                  rows={1}
                   disabled={sending}
                 />
 
-                <button
-                  onClick={() => handleSendMessage()}
-                  disabled={sending || !inputMessage.trim()}
-                  className="btn btn-primary"
-                  style={{ height: '44px', padding: '0 18px', display: 'flex', alignItems: 'center', gap: '6px' }}
-                  title="Send message (Enter)"
-                >
-                  <Send size={15} />
-                  <span>Send</span>
-                </button>
+                <div className="composer-toolbar-row">
+                  <div className="composer-toolbar-left">
+                    <button
+                      type="button"
+                      onClick={() => setShowAttachmentModal(true)}
+                      className="composer-tool-btn"
+                      title="Attach resume, company JD, GitHub repo, or interview experiences"
+                    >
+                      <Paperclip size={14} />
+                      <span>Attach context</span>
+                    </button>
+
+                    <div style={{ position: 'relative' }}>
+                      <button
+                        type="button"
+                        onClick={() => setShowHintMenu(!showHintMenu)}
+                        className="composer-tool-btn"
+                        title="Contextual progressive hints (Nudge, Structure, Walkthrough)"
+                      >
+                        <Lightbulb size={14} />
+                        <span>Hint</span>
+                      </button>
+
+                      {showHintMenu && (
+                        <div className="mentor-hints-popover">
+                          <div
+                            className="hint-option"
+                            onClick={() => {
+                              setShowHintMenu(false);
+                              handleRequestProgressiveHint('nudge');
+                            }}
+                          >
+                            <Lightbulb size={14} color="#D97706" style={{ marginTop: '2px', flexShrink: 0 }} />
+                            <div>
+                              <strong>Subtle Nudge</strong>
+                              <span>Directional clue without code</span>
+                            </div>
+                          </div>
+
+                          <div
+                            className="hint-option"
+                            onClick={() => {
+                              setShowHintMenu(false);
+                              handleRequestProgressiveHint('structural');
+                            }}
+                          >
+                            <HelpCircle size={14} color="var(--accent-primary)" style={{ marginTop: '2px', flexShrink: 0 }} />
+                            <div>
+                              <strong>Structural Steps</strong>
+                              <span>Algorithmic structure & steps</span>
+                            </div>
+                          </div>
+
+                          <div
+                            className="hint-option"
+                            onClick={() => {
+                              setShowHintMenu(false);
+                              handleRequestProgressiveHint('solution');
+                            }}
+                          >
+                            <GraduationCap size={14} color="var(--success)" style={{ marginTop: '2px', flexShrink: 0 }} />
+                            <div>
+                              <strong>Full Walkthrough</strong>
+                              <span>Step-by-step logic & trade-offs</span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="composer-toolbar-right">
+                    <button
+                      onClick={() => handleSendMessage()}
+                      disabled={sending || !inputMessage.trim()}
+                      className="composer-send-btn"
+                      title="Send message (Enter)"
+                      aria-label="Send message"
+                    >
+                      <ArrowUp size={16} />
+                    </button>
+                  </div>
+                </div>
               </div>
 
-              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                Press <strong>Enter</strong> to send • <strong>Shift + Enter</strong> for a new line • Mode: <strong>{currentModeInfo.label}</strong>
+              <div className="composer-shortcut-hint">
+                Press <strong>Enter</strong> to send • <strong>Shift + Enter</strong> for new line • Mode: <strong>{currentModeInfo.label}</strong>
               </div>
             </div>
           </div>
@@ -1263,17 +1221,15 @@ Please tailor my interview simulation to reflect these expectations.`;
             display: 'flex',
             flexDirection: 'column',
             background: 'var(--bg-surface)',
-            border: '1px solid var(--border-light)',
-            borderRadius: 'var(--radius-lg)',
+            borderLeft: '1px solid var(--border-light)',
             overflow: 'hidden',
-            boxShadow: 'var(--shadow-sm)',
             height: '100%'
           }}>
             {/* Editor Header */}
             <div style={{
-              padding: '10px 14px',
+              padding: '8px 14px',
               borderBottom: '1px solid var(--border-light)',
-              background: 'var(--bg-main)',
+              background: 'var(--bg-subtle)',
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
@@ -1281,11 +1237,11 @@ Please tailor my interview simulation to reflect these expectations.`;
               gap: '8px'
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Terminal size={15} color="var(--accent-primary)" />
-                <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                  Isolated Coding Sandbox
+                <Terminal size={14} color="var(--accent-primary)" />
+                <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                  Code Sandbox
                 </span>
-                <span className="badge badge-verified" style={{ fontSize: '0.68rem', padding: '1px 6px' }}>
+                <span className="badge badge-verified" style={{ fontSize: '0.66rem', padding: '1px 6px' }}>
                   {language.toUpperCase()}
                 </span>
               </div>
@@ -1297,14 +1253,14 @@ Please tailor my interview simulation to reflect these expectations.`;
                   className={`btn btn-sm ${language === 'sql' ? 'btn-primary' : 'btn-secondary'}`}
                   style={{ fontSize: '0.72rem', padding: '2px 8px' }}
                 >
-                  SQL (SQLite)
+                  SQL
                 </button>
                 <button
                   onClick={() => setLanguage('python')}
                   className={`btn btn-sm ${language === 'python' ? 'btn-primary' : 'btn-secondary'}`}
                   style={{ fontSize: '0.72rem', padding: '2px 8px' }}
                 >
-                  Python 3.12
+                  Python
                 </button>
                 <button
                   onClick={handleResetCode}
@@ -1313,6 +1269,14 @@ Please tailor my interview simulation to reflect these expectations.`;
                   title="Reset starter template"
                 >
                   <RotateCcw size={11} />
+                </button>
+                <button
+                  onClick={() => setShowEmbeddedEditor(false)}
+                  className="btn btn-secondary btn-sm"
+                  style={{ fontSize: '0.72rem', padding: '2px 6px' }}
+                  title="Close sandbox and return to full-width conversation"
+                >
+                  <X size={11} />
                 </button>
               </div>
             </div>

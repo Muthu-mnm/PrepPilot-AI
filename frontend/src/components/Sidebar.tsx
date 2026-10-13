@@ -1,25 +1,36 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
-  Compass, 
-  MessageSquare, 
-  Code2, 
-  BookOpen, 
+  Sparkles, 
   BarChart3, 
-  CheckCircle2, 
-  Building2, 
+  Target, 
   LogOut, 
   User as UserIcon,
-  Sparkles,
-  Target
+  Plus,
+  Search,
+  MessageSquare,
+  Trash2,
+  X,
+  Terminal,
+  RotateCcw,
+  BookOpen,
+  PanelLeftClose,
+  PanelLeft
 } from 'lucide-react';
-import { User } from '../types';
+import { User, ChatSessionMeta } from '../types';
 
-interface SidebarProps {
+export interface SidebarProps {
   currentTab: string;
   setCurrentTab: (tab: string) => void;
   user: User | null;
   onLogout: () => void;
   onOpenAuth: () => void;
+  sessions: ChatSessionMeta[];
+  activeSessionId: string;
+  onSelectSession: (sessionId: string) => void;
+  onNewChat: () => void;
+  onDeleteSession?: (sessionId: string) => void;
+  isCollapsed?: boolean;
+  onToggleCollapse?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -28,7 +39,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
   user,
   onLogout,
   onOpenAuth,
+  sessions,
+  activeSessionId,
+  onSelectSession,
+  onNewChat,
+  onDeleteSession,
+  isCollapsed = false,
+  onToggleCollapse
 }) => {
+  const [searchQuery, setSearchQuery] = useState('');
+
   // Map legacy/sub-route tab IDs to the 3 primary destinations
   const activeTabId = 
     ['mentor', 'home', 'dashboard', 'coding', 'interview', 'mastery'].includes(currentTab) ? 'mentor' :
@@ -36,73 +56,193 @@ export const Sidebar: React.FC<SidebarProps> = ({
     ['profile', 'setup', 'companies'].includes(currentTab) ? 'profile' :
     'mentor';
 
-  const navItems = [
+  const secondaryNavItems = [
     { id: 'mentor', label: 'My Mentor', icon: Sparkles },
     { id: 'progress', label: 'My Progress', icon: BarChart3 },
     { id: 'profile', label: 'My Profile', icon: Target },
   ];
 
+  const filteredSessions = sessions.filter((s) => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase();
+    return s.title.toLowerCase().includes(q) || (s.preview && s.preview.toLowerCase().includes(q));
+  });
+
+  const getModeIcon = (mode: string) => {
+    switch (mode) {
+      case 'coding':
+        return <Terminal size={14} className="session-icon" />;
+      case 'interview':
+        return <Target size={14} className="session-icon" />;
+      case 'retest':
+        return <RotateCcw size={14} className="session-icon" />;
+      case 'learn':
+      case 'project_defense':
+        return <BookOpen size={14} className="session-icon" />;
+      default:
+        return <MessageSquare size={14} className="session-icon" />;
+    }
+  };
+
   return (
-    <aside className="app-sidebar">
+    <aside className={`app-sidebar ${isCollapsed ? 'collapsed' : ''}`}>
+      {/* Brand Header */}
       <div className="sidebar-header">
-        <div className="brand-icon-wrap">
-          <BookOpen size={20} />
+        <div className="brand-logo-row">
+          <div className="brand-icon-wrap" title="PrepPilot AI Placement Mentor">
+            <Sparkles size={18} />
+          </div>
+          <div className="brand-title-wrap">
+            <span className="brand-title">PrepPilot</span>
+            <span className="brand-subtitle">AI Mentor</span>
+          </div>
         </div>
-        <div>
-          <h1 className="brand-title">PrepPilot</h1>
+        {onToggleCollapse && (
+          <button 
+            onClick={onToggleCollapse}
+            className="sidebar-toggle-btn"
+            title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-label="Toggle sidebar"
+          >
+            {isCollapsed ? <PanelLeft size={16} /> : <PanelLeftClose size={16} />}
+          </button>
+        )}
+      </div>
+
+      {/* Main Action: + New Chat */}
+      <div className="sidebar-action-wrap">
+        <button
+          onClick={onNewChat}
+          className="btn-new-chat"
+          title="Start a new conversation"
+        >
+          <Plus size={16} />
+          <span>New chat</span>
+        </button>
+      </div>
+
+      {/* Search Conversation History */}
+      {sessions.length > 3 && (
+        <div className="sidebar-search-wrap">
+          <div className="sidebar-search-box">
+            <Search size={13} className="search-icon" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search conversations..."
+              className="sidebar-search-input"
+            />
+            {searchQuery && (
+              <button 
+                onClick={() => setSearchQuery('')}
+                className="clear-search-btn"
+                title="Clear search"
+              >
+                <X size={12} />
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Dominant Content: Conversation History */}
+      <div className="sidebar-history-container">
+        <div className="history-section-header">
+          <span>Recent Conversations</span>
+          <span className="history-count">{filteredSessions.length}</span>
+        </div>
+
+        <div className="sidebar-sessions-list">
+          {filteredSessions.length === 0 ? (
+            <div className="sidebar-empty-history">
+              {searchQuery ? 'No matching conversations' : 'No previous conversations'}
+            </div>
+          ) : (
+            filteredSessions.map((session) => {
+              const isActive = activeTabId === 'mentor' && session.id === activeSessionId;
+              return (
+                <div
+                  key={session.id}
+                  onClick={() => {
+                    onSelectSession(session.id);
+                    if (currentTab !== 'mentor') {
+                      setCurrentTab('mentor');
+                    }
+                  }}
+                  className={`sidebar-session-item ${isActive ? 'active' : ''}`}
+                  title={session.title}
+                >
+                  {getModeIcon(session.mode)}
+                  <div className="session-info">
+                    <span className="session-title">{session.title}</span>
+                  </div>
+                  {onDeleteSession && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDeleteSession(session.id);
+                      }}
+                      className="session-delete-btn"
+                      title="Delete conversation"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  )}
+                </div>
+              );
+            })
+          )}
         </div>
       </div>
 
-      <nav className="sidebar-nav">
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = activeTabId === item.id;
-          return (
-            <button
-              key={item.id}
-              onClick={() => setCurrentTab(item.id)}
-              className={`nav-item ${isActive ? 'active' : ''}`}
-              style={{ width: '100%', textAlign: 'left', background: 'none' }}
-            >
-              <Icon size={18} />
-              <span>{item.label}</span>
-            </button>
-          );
-        })}
-      </nav>
+      {/* Secondary Destinations: Visually Quiet */}
+      <div className="sidebar-secondary-nav">
+        <div className="secondary-divider" />
+        <div className="secondary-nav-items">
+          {secondaryNavItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = activeTabId === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => setCurrentTab(item.id)}
+                className={`secondary-nav-item ${isActive ? 'active' : ''}`}
+              >
+                <Icon size={16} />
+                <span>{item.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
+      {/* Account / Profile Footer */}
       <div className="sidebar-footer">
         {user ? (
-          <>
-            <div className="user-profile-widget">
-              <div className="user-avatar">
-                {user.full_name ? user.full_name.charAt(0).toUpperCase() : 'U'}
-              </div>
-              <div style={{ overflow: 'hidden' }}>
-                <div style={{ fontSize: '0.85rem', fontWeight: 600, textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
-                  {user.full_name}
-                </div>
-                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
-                  {user.target_role || 'Candidate'}
-                </div>
-              </div>
+          <div className="user-profile-row">
+            <div className="user-avatar-small" title={user.full_name}>
+              {user.full_name ? user.full_name.charAt(0).toUpperCase() : 'U'}
+            </div>
+            <div className="user-meta-wrap">
+              <span className="user-name-text">{user.full_name}</span>
+              <span className="user-role-text">{user.target_role || 'Placement Candidate'}</span>
             </div>
             <button 
               onClick={onLogout}
-              className="btn btn-secondary btn-sm" 
-              style={{ width: '100%', justifyContent: 'flex-start', color: 'var(--text-secondary)' }}
+              className="user-logout-btn" 
+              title="Sign Out"
+              aria-label="Sign Out"
             >
               <LogOut size={15} />
-              <span>Sign Out</span>
             </button>
-          </>
+          </div>
         ) : (
           <button 
             onClick={onOpenAuth}
-            className="btn btn-primary btn-sm" 
-            style={{ width: '100%' }}
+            className="btn-auth-signin" 
           >
-            <UserIcon size={16} />
+            <UserIcon size={15} />
             <span>Sign In / Register</span>
           </button>
         )}
@@ -110,3 +250,5 @@ export const Sidebar: React.FC<SidebarProps> = ({
     </aside>
   );
 };
+
+export default Sidebar;

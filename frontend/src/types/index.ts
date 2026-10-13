@@ -313,3 +313,13 @@ export interface MentorChatMessage {
   suggested_actions?: string[];
   created_at: string;
 }
+
+export interface ChatSessionMeta {
+  id: string;
+  title: string;
+  lastUpdated: string;
+  mode: MentorMode;
+  messagesCount: number;
+  preview?: string;
+}
+
